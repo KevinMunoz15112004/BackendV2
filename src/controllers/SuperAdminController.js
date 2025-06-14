@@ -200,18 +200,36 @@ const obtenerEstudiantes = async (req, res) => {
 }
 
 const obtenerEstudiantePorId = async (req, res) => {
-  const estudiante = await Estudiante.findById(req.params.id)
-  if (!estudiante) {
-    return res.status(404).json({ msg: 'Estudiante no encontrado' })
+  const id = req.params.id
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ msg: 'ID no válido' })
   }
-  res.json(estudiante)
+
+  try {
+    const estudiante = await Estudiante.findById(id)
+
+    if (!estudiante) {
+      return res.status(404).json({ msg: 'Estudiante no encontrado' })
+    }
+
+    res.json(estudiante)
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
 }
 
 const actualizarEstudiante = async (req, res) => {
+  const id = req.params.id;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ msg: "ID no válido" });
+  }
+
   try {
-    const estudiante = await Estudiante.findById(req.params.id)
+    const estudiante = await Estudiante.findById(id);
     if (!estudiante) {
-      return res.status(404).json({ msg: 'Estudiante no encontrado' })
+      return res.status(404).json({ msg: 'Estudiante no encontrado' });
     }
 
     const camposActualizados = {};
@@ -222,7 +240,7 @@ const actualizarEstudiante = async (req, res) => {
     }
 
     if (Object.keys(camposActualizados).length === 0) {
-      return res.status(400).json({ msg: "Debes llenar al menos un campo a actualizar" });
+      return res.status(400).json({ msg: "Debes llenar al menos un campo a actualizar" })
     }
 
     if (camposActualizados.password) {
@@ -230,20 +248,35 @@ const actualizarEstudiante = async (req, res) => {
     }
 
     const estudianteActualizado = await Estudiante.findByIdAndUpdate(
-      req.params.id,
+      id,
       camposActualizados,
       { new: true }
-    );
+    )
 
-    res.json(estudianteActualizado)
+    res.json({ msg: "Datos actualizados correctamente", estudiante: estudianteActualizado })
   } catch (error) {
-    res.status(400).json({ error: error.message })
+    res.status(500).json({ error: error.message });
   }
 }
 
 const eliminarEstudiante = async (req, res) => {
-  await Estudiante.findByIdAndDelete(req.params.id)
-  res.json({ msg: 'Estudiante eliminado correctamente' })
+  const id = req.params.id
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ msg: "ID no válido" })
+  }
+
+  try {
+    const estudianteEliminado = await Estudiante.findByIdAndDelete(id)
+
+    if (!estudianteEliminado) {
+      return res.status(404).json({ msg: 'Estudiante no encontrado' })
+    }
+
+    res.json({ msg: 'Estudiante eliminado correctamente' })
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
 }
 
 //Controladores para la gestión de redes comunitarias
@@ -267,7 +300,7 @@ const crearRed = async (req, res) => {
 
     await red.save();
 
-    res.status(201).json({ mensaje: 'Red comunitaria creada correctamente', red })
+    res.status(201).json({ msg: 'Red comunitaria creada correctamente', red })
   } catch (error) {
     res.status(400).json({ msg: "Debe llenar los campos obligatorios" })
   }
@@ -279,46 +312,94 @@ const obtenerRedes = async (req, res) => {
 }
 
 const obtenerRedPorId = async (req, res) => {
-  const red = await RedComunitaria.findById(req.params.id).populate('miembros', 'nombre apellido email')
-  if (!red) return res.status(404).json({ mensaje: 'Red no encontrada' })
-  res.json(red);
-}
+  const id = req.params.id;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ msg: 'ID no válido' });
+  }
+
+  try {
+    const red = await RedComunitaria.findById(id).populate('miembros', 'nombre apellido email');
+
+    if (!red) {
+      return res.status(404).json({ msg: 'Red no encontrada' });
+    }
+
+    res.json(red);
+  } catch (error) {
+    res.status(500).json({ mensaje: error.message });
+  }
+};
 
 const actualizarRed = async (req, res) => {
+  const id = req.params.id;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ msg: "ID no válido" })
+  }
+
   try {
-    const { nombre, descripcion } = req.body;
+    const redExistente = await RedComunitaria.findById(id)
+    if (!redExistente) {
+      return res.status(404).json({ msg: "Red no encontrada" })
+    }
+
+    const { nombre, descripcion } = req.body
 
     if (!nombre && !descripcion) {
       return res.status(400).json({ msg: "Lo sentimos, debes llenar al menos un campo a actualizar" });
     }
 
     const camposActualizados = {};
-    if (nombre) {
-      camposActualizados.nombre = nombre;
 
-      const estudiantes = await Estudiante.find({ redComunitaria: nombre });
-      camposActualizados.miembros = estudiantes.map(e => e._id);
-      camposActualizados.cantidadMiembros = estudiantes.length;
+    if (nombre) {
+
+      const nombreExistente = await RedComunitaria.findOne({ nombre, _id: { $ne: id } })
+      if (nombreExistente) {
+        return res.status(400).json({ msg: "Ya existe una red con ese nombre" })
+      }
+
+      camposActualizados.nombre = nombre
+
+      const estudiantes = await Estudiante.find({ redComunitaria: nombre })
+      camposActualizados.miembros = estudiantes.map(e => e._id)
+      camposActualizados.cantidadMiembros = estudiantes.length
     }
+
     if (descripcion) {
-      camposActualizados.descripcion = descripcion;
+      camposActualizados.descripcion = descripcion
     }
 
     const redActualizada = await RedComunitaria.findByIdAndUpdate(
-      req.params.id,
+      id,
       camposActualizados,
       { new: true }
-    );
+    )
 
-    res.json(redActualizada);
+    res.json(redActualizada)
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(500).json({ error: error.message })
   }
 }
 
 const eliminarRed = async (req, res) => {
-  await RedComunitaria.findByIdAndDelete(req.params.id)
-  res.json({ mensaje: 'Red eliminada correctamente' })
+  const id = req.params.id
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ msg: 'ID no válido' })
+  }
+
+  try {
+    const redEliminada = await RedComunitaria.findByIdAndDelete(id)
+
+    if (!redEliminada) {
+      return res.status(404).json({ msg: 'Red no encontrada' })
+    }
+
+    res.json({ mensaje: 'Red eliminada correctamente' })
+  } catch (error) {
+    res.status(500).json({ mensaje: error.message })
+  }
 }
 
 export {
