@@ -14,8 +14,8 @@ router.get('/recuperar-password/:token', comprobarTokenPasword)
 router.post('/nuevo-password/:token', crearNuevoPassword)
 router.post('/login', login)
 router.get('/perfil-superadmin', autenticarToken, isSuperAdmin, perfil)
-router.put('/superadmin/:id', autenticarToken, isSuperAdmin, actualizarPerfil)
-router.put('/superadmin/actualizar-password/:id', autenticarToken, isSuperAdmin, actualizarPassword)
+router.put('/actualizar-superadmin/', autenticarToken, isSuperAdmin, actualizarPerfil)
+router.put('/superadmin/actualizar-password/', autenticarToken, isSuperAdmin, actualizarPassword)
 
 //Rutas para la gestión de usuarios
 router.post('/crear-estudiantes', autenticarToken, isSuperAdmin, crearEstudiante)

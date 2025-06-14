@@ -97,17 +97,14 @@ const crearNuevoPassword = async (req, res) => {
 }
 
 const actualizarPerfil = async (req, res) => {
-  const { id } = req.params;
-  if (!mongoose.Types.ObjectId.isValid(id)) {
-    return res.status(404).json({ msg: `Lo sentimos, debe ser un id válido` });
-  }
+  const id = req.user._id;
 
-  const campos = ["nombre", "apellido", "direccion", "celular", "email"];
-  const datos = {}
+  const campos = ["nombre", "apellido", "direccion", "celular", "email"]
+  const datos = {};
 
   for (const campo of campos) {
     if (req.body[campo] && req.body[campo].trim() !== "") {
-      datos[campo] = req.body[campo]
+      datos[campo] = req.body[campo];
     }
   }
 
@@ -115,9 +112,9 @@ const actualizarPerfil = async (req, res) => {
     return res.status(400).json({ msg: "Lo sentimos, debes llenar al menos un campo a actualizar" })
   }
 
-  const superAdminBDD = await SuperAdmin.findById(id)
+  const superAdminBDD = await SuperAdmin.findById(id);
   if (!superAdminBDD) {
-    return res.status(404).json({ msg: `Lo sentimos, no existe el usuario ${id}` })
+    return res.status(404).json({ msg: `Lo sentimos, no existe el usuario` })
   }
 
   if (datos.email && superAdminBDD.email !== datos.email) {
@@ -128,22 +125,30 @@ const actualizarPerfil = async (req, res) => {
   }
 
   Object.assign(superAdminBDD, datos)
-  await superAdminBDD.save();
-  console.log(superAdminBDD)
+  await superAdminBDD.save()
 
   res.status(200).json({ msg: "Datos actualizados correctamente" })
 }
 
 const actualizarPassword = async (req, res) => {
-  const superAdminBDD = await SuperAdmin.findById(req.user._id)
-  if (!superAdminBDD) return res.status(404).json({ msg: `Lo sentimos, no existe el usario ${id}` })
-  const verificarPassword = await superAdminBDD.matchPassword(req.body.passwordactual)
-  if (!verificarPassword) return res.status(404).json({ msg: "Lo sentimos, la contraseña actual no es la correcta" })
+  const id = req.user._id
+
+  if (!req.body.passwordactual || !req.body.passwordnuevo) {
+    return res.status(400).json({ msg: "Debe completar todos los campos" })
+  }
+
+  const superAdminBDD = await SuperAdmin.findById(id);
+  if (!superAdminBDD) return res.status(404).json({ msg: "Lo sentimos, no existe el usuario" })
+
+  const verificarPassword = await superAdminBDD.matchPassword(req.body.passwordactual);
+  if (!verificarPassword) return res.status(400).json({ msg: "La contraseña actual no es la correcta" })
+
   superAdminBDD.password = await superAdminBDD.encrypPassword(req.body.passwordnuevo)
-  if (!req.body.passwordactual || !req.body.passwordnuevo) return res.status(404).json({ msg: "Debe completar todos los campos" })
-  await superAdminBDD.save()
+  await superAdminBDD.save();
+
   res.status(200).json({ msg: "Password actualizado correctamente" })
-}
+};
+
 
 const perfil = (req, res) => {
   delete req.user.token
