@@ -74,8 +74,33 @@ const sendMailToRegister = async (userMail, token) => {
     })
 }
 
+const enviarCorreoNuevoAdmin = async (correoOriginal, nuevoCorreo) => {
+  const mailOptions = {
+    from: '"PoliRed" <polired@policonecta.com>',
+    to: correoOriginal,
+    subject: "Has sido promovido a Admin_Red - PoliRed",
+    html: `
+      <p>Hola,</p>
+      <p>Tu rol ha sido actualizado a <strong>Admin_Red</strong> en la plataforma PoliRed.</p>
+      <p>Tu nuevo correo de acceso para el entorno administrativo es: <strong>${nuevoCorreo}</strong></p>
+      <p>Mantendrás tu misma contraseña de tu cuenta estudiante.</p>
+      <hr>
+      <footer>El equipo de PoliRed</footer>
+    `
+  };
+
+  try {
+    await transporter.sendMail(mailOptions)
+    console.log(`Correo enviado a ${correoOriginal}`)
+  } catch (error) {
+    console.error("Error al enviar correo:", error)
+  }
+}
+
+
 export {
     sendMailToRecoveryPassword,
     sendMailToRecoveryPasswordE,
-    sendMailToRegister
+    sendMailToRegister,
+    enviarCorreoNuevoAdmin
 }

@@ -1,5 +1,6 @@
 import { Schema, model } from 'mongoose'
 import bcrypt from 'bcryptjs'
+import mongoose from 'mongoose'
 
 const estudianteSchema = new Schema({
   nombre: {
@@ -25,7 +26,10 @@ const estudianteSchema = new Schema({
   },
   password: {
     type: String,
-    required: true
+    required: function () {
+      return !this.authMicrosoft
+    },
+    default: null
   },
   status: {
     type: Boolean,
@@ -44,13 +48,19 @@ const estudianteSchema = new Schema({
     enum: ['Estudiante', 'Admin_Red'],
     default: 'Estudiante'
   },
-  redComunitaria: {
-    type: String,
-    default: null
+  redComunitaria: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'RedComunitaria',
+    default: []
+  }],
+  authMicrosoft: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true
 });
+
 
 // Método para cifrar la contraseña del estudiante
 estudianteSchema.methods.encrypPassword = async function (password) {

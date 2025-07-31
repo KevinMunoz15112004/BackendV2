@@ -1,10 +1,11 @@
 import {Router} from 'express'
-import { comprobarTokenPasword, crearNuevoPassword, recuperarPassword, login, perfil, actualizarPerfil, actualizarPassword } 
+import { comprobarTokenPasword, crearNuevoPassword, recuperarPassword, login, perfil, actualizarPerfil, actualizarAvatar, actualizarPassword } 
 from '../controllers/SuperAdminController.js'
 import { crearEstudiante, obtenerEstudiantes, obtenerEstudiantePorId, actualizarEstudiante, eliminarEstudiante } 
 from '../controllers/SuperAdminController.js'
 import { autenticarToken, isSuperAdmin } from '../middlewares/authSuperAdmin.js'
 import { crearRed, obtenerRedes, obtenerRedPorId, actualizarRed, eliminarRed } from '../controllers/SuperAdminController.js'
+import { verificarEstadoLogin } from '../middlewares/verificarLogin.js'
 
 const router = Router()
 
@@ -12,9 +13,10 @@ const router = Router()
 router.post('/recuperar-password', recuperarPassword)
 router.get('/recuperar-password/:token', comprobarTokenPasword)
 router.post('/nuevo-password/:token', crearNuevoPassword)
-router.post('/login', login)
+router.post('/login', verificarEstadoLogin, login)
 router.get('/perfil-superadmin', autenticarToken, isSuperAdmin, perfil)
 router.put('/actualizar-superadmin/', autenticarToken, isSuperAdmin, actualizarPerfil)
+router.put('/perfil/avatar', autenticarToken, isSuperAdmin, actualizarAvatar)
 router.put('/superadmin/actualizar-password/', autenticarToken, isSuperAdmin, actualizarPassword)
 
 //Rutas para la gestión de usuarios

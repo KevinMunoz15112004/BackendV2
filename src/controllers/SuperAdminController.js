@@ -2,7 +2,10 @@ import SuperAdmin from '../models/SuperAdmin.js'
 import mongoose from 'mongoose'
 import Estudiante from '../models/Estudiantes.js'
 import RedComunitaria from '../models/RedComunitaria.js'
-import { sendMailToRecoveryPassword } from "../config/nodemailer.js"
+import cloudinary from 'cloudinary'
+import fs from "fs-extra"
+import AdminRed from '../models/adminRedes.js'
+import { sendMailToRecoveryPassword, sendMailToRegister, enviarCorreoNuevoAdmin } from "../config/nodemailer.js"
 import { crearTokenJWT } from "../middlewares/authSuperAdmin.js"
 
 //Controladores para la gestión de la cuenta
@@ -130,6 +133,42 @@ const actualizarPerfil = async (req, res) => {
   res.status(200).json({ msg: "Datos actualizados correctamente" })
 }
 
+const actualizarAvatar = async (req, res) => {
+  const id = req.user._id;
+
+  if (!req.files || !req.files.imagen) {
+    return res.status(400).json({ msg: 'Debes subir una imagen' });
+  }
+
+  const file = req.files.imagen;
+
+  const superAdminBDD = await SuperAdmin.findById(id);
+  if (!superAdminBDD) {
+    return res.status(404).json({ msg: 'Usuario no encontrado' });
+  }
+
+  try {
+    const resultado = await cloudinary.uploader.upload(file.tempFilePath, {
+      folder: 'avatares',
+      public_id: `${id}_avatar`,
+      overwrite: true,
+    });
+
+    await fs.unlink(file.tempFilePath)
+
+    superAdminBDD.avatar = resultado.secure_url
+    await superAdminBDD.save();
+
+    res.status(200).json({
+      msg: 'Avatar actualizado correctamente',
+      avatar: superAdminBDD.avatar,
+    });
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ msg: 'Error al subir imagen', error: error.message })
+  }
+}
+
 const actualizarPassword = async (req, res) => {
   const id = req.user._id
 
@@ -149,7 +188,6 @@ const actualizarPassword = async (req, res) => {
   res.status(200).json({ msg: "Password actualizado correctamente" })
 };
 
-
 const perfil = (req, res) => {
   delete req.user.token
   delete req.user.confirmEmail
@@ -159,15 +197,20 @@ const perfil = (req, res) => {
   res.status(200).json(req.user)
 }
 
-// Controladores para le gestión de estudiantes
 const crearEstudiante = async (req, res) => {
   try {
-    const { nombre, apellido, celular, email, password, rol, redComunitaria } = req.body
+    const { nombre, apellido, celular, email, password, rol, redComunitaria } = req.body;
 
-    const existe = await Estudiante.findOne({ email })
-    if (existe) {
-      return res.status(400).json({ msg: 'El email ya está registrado' })
+    if (!nombre || !apellido || !email || !password) {
+      return res.status(400).json({ msg: "Todos los campos obligatorios deben estar llenos" });
     }
+
+    const existe = await Estudiante.findOne({ email });
+    if (existe) {
+      return res.status(400).json({ msg: 'El email ya está registrado' });
+    }
+
+    const redesArray = Array.isArray(redComunitaria) ? redComunitaria : [];
 
     const nuevoEstudiante = new Estudiante({
       nombre,
@@ -175,13 +218,27 @@ const crearEstudiante = async (req, res) => {
       celular,
       email,
       rol,
-      redComunitaria
-    })
+      redComunitaria: redesArray
+    });
 
-    nuevoEstudiante.password = await nuevoEstudiante.encrypPassword(password)
-    nuevoEstudiante.crearToken()
+    nuevoEstudiante.password = await nuevoEstudiante.encrypPassword(password);
+    const token = nuevoEstudiante.crearToken();
 
-    await nuevoEstudiante.save()
+    await nuevoEstudiante.save();
+
+    for (const redId of redesArray) {
+      const red = await RedComunitaria.findById(redId);
+      if (!red) {
+        return res.status(400).json({ msg: `La red comunitaria con id ${redId} no existe` });
+      }
+      if (!red.miembros.includes(nuevoEstudiante._id)) {
+        red.miembros.push(nuevoEstudiante._id);
+        red.cantidadMiembros = red.miembros.length;
+        await red.save()
+      }
+    }
+
+    await sendMailToRegister(email, token);
 
     res.status(201).json({
       mensaje: 'Estudiante creado exitosamente',
@@ -195,13 +252,21 @@ const crearEstudiante = async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(400).json({ msg: "Debe llenar los campos obligatorios" })
+    console.error("Error crearEstudiante:", error);
+    res.status(500).json({ msg: error.message });
   }
-}
+};
 
 const obtenerEstudiantes = async (req, res) => {
-  const estudiantes = await Estudiante.find()
-  res.json(estudiantes);
+  try {
+    const estudiantes = await Estudiante.find()
+      .populate('redComunitaria', 'nombre')
+
+    res.json(estudiantes);
+  } catch (error) {
+    console.error('Error al obtener estudiantes:', error)
+    res.status(500).json({ msg: 'Error al obtener estudiantes' })
+  }
 }
 
 const obtenerEstudiantePorId = async (req, res) => {
@@ -228,7 +293,7 @@ const actualizarEstudiante = async (req, res) => {
   const id = req.params.id;
 
   if (!mongoose.Types.ObjectId.isValid(id)) {
-    return res.status(400).json({ msg: "ID no válido" });
+    return res.status(400).json({ msg: 'ID no válido' });
   }
 
   try {
@@ -238,31 +303,133 @@ const actualizarEstudiante = async (req, res) => {
     }
 
     const camposActualizados = {};
-    for (const key in req.body) {
-      if (req.body[key] && req.body[key].trim() !== "") {
-        camposActualizados[key] = req.body[key];
+    for (const [key, value] of Object.entries(req.body)) {
+      if (value && value.toString().trim() !== '') {
+        camposActualizados[key] = value;
       }
     }
 
-    if (Object.keys(camposActualizados).length === 0) {
-      return res.status(400).json({ msg: "Debes llenar al menos un campo a actualizar" })
+    const cambiandoARolAdmin = estudiante.rol === 'Estudiante' && req.body.rol === 'Admin_Red';
+
+    // Solo si el estudiante sigue como Estudiante, puede actualizar redComunitaria
+    if (req.body.redComunitaria && !cambiandoARolAdmin) {
+      const nuevaRedId = req.body.redComunitaria;
+
+      const redNueva = await RedComunitaria.findById(nuevaRedId);
+      if (!redNueva) {
+        return res.status(404).json({ msg: 'La nueva red comunitaria no existe' });
+      }
+
+      for (const redIdActual of estudiante.redComunitaria) {
+        const redAnterior = await RedComunitaria.findById(redIdActual);
+        if (redAnterior) {
+          redAnterior.miembros = redAnterior.miembros.filter(id => !id.equals(estudiante._id));
+          redAnterior.cantidadMiembros = redAnterior.miembros.length;
+          await redAnterior.save();
+        }
+      }
+
+      if (!redNueva.miembros.includes(estudiante._id)) {
+        redNueva.miembros.push(estudiante._id);
+        redNueva.cantidadMiembros = redNueva.miembros.length;
+        await redNueva.save();
+      }
+
+      camposActualizados.redComunitaria = nuevaRedId;
     }
 
-    if (camposActualizados.password) {
-      camposActualizados.password = await estudiante.encrypPassword(camposActualizados.password)
+    if (Object.keys(camposActualizados).length === 0) {
+      return res.status(400).json({ msg: 'Debes llenar al menos un campo a actualizar' });
     }
+
+    const nuevoRol = camposActualizados.rol || estudiante.rol;
+
+    if (!['Estudiante', 'Admin_Red'].includes(nuevoRol)) {
+      return res.status(400).json({ msg: 'Rol inválido. Solo se permite "Estudiante" o "Admin_Red"' });
+    }
+
+    // Convertir a Admin_Red
+    if (estudiante.rol === 'Estudiante' && nuevoRol === 'Admin_Red') {
+      const redComunitaria = req.body.redComunitaria;
+
+      if (!redComunitaria) {
+        return res.status(400).json({ msg: 'Debes especificar la red comunitaria para el nuevo Admin_Red' });
+      }
+
+      const red = await RedComunitaria.findById(redComunitaria);
+      if (!red) {
+        return res.status(404).json({ msg: 'La red comunitaria especificada no existe' });
+      }
+
+      if (!red.miembros.includes(estudiante._id)) {
+        red.miembros.push(estudiante._id);
+        red.cantidadMiembros = red.miembros.length;
+        await red.save();
+      }
+
+      const nuevoEmail = `AR${estudiante.email}`;
+
+      const adminExistente = await AdminRed.findOne({ email: nuevoEmail });
+      if (adminExistente) {
+        return res.status(400).json({ msg: 'Ya existe un Admin_Red con ese correo' });
+      }
+
+      const nuevoAdmin = new AdminRed({
+        nombre: estudiante.nombre,
+        apellido: estudiante.apellido,
+        email: nuevoEmail,
+        confirmEmail: true,
+        password: estudiante.password,
+        rol: 'Admin_Red',
+        redAsignada: redComunitaria,
+      });
+
+      await nuevoAdmin.save();
+
+      await enviarCorreoNuevoAdmin(estudiante.email, nuevoEmail);
+
+      delete camposActualizados.redComunitaria;
+    }
+
+    // Convertir a Estudiante
+    if (estudiante.rol === 'Admin_Red' && nuevoRol === 'Estudiante') {
+      await AdminRed.findOneAndDelete({ _id: estudiante._id });
+
+      if (estudiante.redComunitaria) {
+        const red = await RedComunitaria.findOne({ nombre: estudiante.redComunitaria });
+        if (red && red.miembros.includes(estudiante._id)) {
+          red.miembros = red.miembros.filter(idMiembro => !idMiembro.equals(estudiante._id));
+          red.cantidadMiembros = red.miembros.length;
+          await red.save();
+        }
+
+        if (!camposActualizados.redComunitaria) {
+          camposActualizados.redComunitaria = [];
+        }
+      }
+    }
+
+    // Encriptar nueva contraseña si se envía
+    if (camposActualizados.password) {
+      camposActualizados.password = await estudiante.encrypPassword(camposActualizados.password);
+    }
+
+    // Eliminar el campo rol para evitar modificarlo directamente en Estudiante
+    delete camposActualizados.rol;
 
     const estudianteActualizado = await Estudiante.findByIdAndUpdate(
       id,
       camposActualizados,
       { new: true }
-    )
+    );
 
-    res.json({ msg: "Datos actualizados correctamente", estudiante: estudianteActualizado })
+    res.json({ msg: 'Datos actualizados correctamente', estudiante: estudianteActualizado });
+
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-}
+};
+
 
 const eliminarEstudiante = async (req, res) => {
   const id = req.params.id
@@ -294,13 +461,11 @@ const crearRed = async (req, res) => {
       return res.status(400).json({ mensaje: 'Ya existe una red con ese nombre' })
     }
 
-    const estudiantes = await Estudiante.find({ redComunitaria: nombre })
-
     const red = new RedComunitaria({
       nombre,
       descripcion,
-      miembros: estudiantes.map(e => e._id),
-      cantidadMiembros: estudiantes.length
+      miembros: [],
+      cantidadMiembros: 0
     })
 
     await red.save();
@@ -366,9 +531,6 @@ const actualizarRed = async (req, res) => {
 
       camposActualizados.nombre = nombre
 
-      const estudiantes = await Estudiante.find({ redComunitaria: nombre })
-      camposActualizados.miembros = estudiantes.map(e => e._id)
-      camposActualizados.cantidadMiembros = estudiantes.length
     }
 
     if (descripcion) {
@@ -414,6 +576,7 @@ export {
   crearNuevoPassword,
   perfil,
   actualizarPerfil,
+  actualizarAvatar,
   actualizarPassword,
   crearEstudiante,
   obtenerEstudiantes,

@@ -39,6 +39,16 @@ const superAdminSchema = new Schema({
         type:Boolean,
         default:false
     },
+    avatar: {
+        type: String,
+        default: null,
+        trim: true,
+    }, 
+    avatarIA: {
+        type: String,
+        default: null,
+        trim: true,
+    },
     rol:{
         type:String,
         default:"SuperAdmin"
