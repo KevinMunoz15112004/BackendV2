@@ -147,6 +147,7 @@ const listarPublicaciones = async (req, res) => {
 
     const publicaciones = await Publicacion.find({ comunidadId: redAsignada })
       .populate('autorId', 'nombre apellido')
+      .populate('comunidadId', 'nombre')
       .sort({ timestamp: -1 })
 
     if (publicaciones.length === 0) {
@@ -205,6 +206,7 @@ const listarArticulosPorRedAdmin = async (req, res) => {
 
     const articulos = await Articulo.find({ redComunitaria: redAsignada })
       .populate('autorId', 'nombre apellido email')
+      .populate('redComunitaria', 'nombre')
       .sort({ createdAt: -1 })
 
     return res.status(200).json({

@@ -467,7 +467,7 @@ const listarPublicaciones = async (req, res) => {
   try {
     const publicaciones = await Publicacion.find()
       .populate('autorId', 'nombre apellido')
-      .populate('comunidadId')
+      .populate('comunidadId', 'nombre')
       .sort({ createdAt: -1 })
 
     res.status(200).json(publicaciones)
@@ -492,6 +492,7 @@ const listarPublicacionesPorRed = async (req, res) => {
 
     const publicaciones = await Publicacion.find({ comunidadId: redId })
       .populate('autorId', 'nombre apellido')
+      .populate('comunidadId', 'nombre')
       .sort({ timestamp: -1 });
 
     return res.status(200).json({
@@ -562,6 +563,7 @@ const listarTodosArticulos = async (req, res) => {
   try {
     const articulos = await Articulo.find()
       .populate('autorId', 'nombre apellido')
+      .populate('redComunitaria', 'nombre')
       .sort({ createdAt: -1 })
 
     return res.status(200).json({
@@ -591,6 +593,7 @@ const listarArticulosPorRed = async (req, res) => {
 
     const articulos = await Articulo.find({ redComunitaria: redId })
       .populate('autorId', 'nombre apellido')
+      .populate('redComunitaria', 'nombre')
       .sort({ timestamp: -1 })
 
     return res.status(200).json({
