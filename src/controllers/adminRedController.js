@@ -253,6 +253,32 @@ const eliminarArticuloAdmin = async (req, res) => {
   }
 }
 
+const obtenerInfoRed = async (req, res) => {
+  try {
+    const adminId = req.user._id || req.user.id
+
+    const admin = await AdminRed.findById(adminId).populate('redAsignada')
+    if (!admin) {
+      return res.status(404).json({ msg: 'Administrador no encontrado' })
+    }
+
+    if (!admin.redAsignada) {
+      return res.status(400).json({ msg: 'No tienes una red comunitaria asignada.' })
+    }
+
+    return res.status(200).json({
+      msg: 'Red comunitaria asignada',
+      red: admin.redAsignada
+    });
+
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ msg: 'Error en el servidor' });
+  }
+}
+
+
+
 const verEstudiantesDeRed = async (req, res) => {
   try {
     if (req.user.rol !== 'Admin_Red') {
@@ -379,6 +405,7 @@ export {
   listarArticulosPorRedAdmin,
   eliminarArticuloAdmin,
   eliminarPublicacionAdmin,
+  obtenerInfoRed,
   verEstudiantesDeRed,
   eliminarEstudianteDeRed,
   actualizarRedComunitaria
