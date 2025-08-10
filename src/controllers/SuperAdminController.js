@@ -115,6 +115,16 @@ const actualizarPerfil = async (req, res) => {
     return res.status(400).json({ msg: "Lo sentimos, debes llenar al menos un campo a actualizar" })
   }
 
+  const regexSoloLetras = /^[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+$/
+
+  if (datos.nombre && !regexSoloLetras.test(datos.nombre)) {
+    return res.status(400).json({ msg: "El nombre no debe contener números ni caracteres especiales" });
+  }
+
+  if (datos.apellido && !regexSoloLetras.test(datos.apellido)) {
+    return res.status(400).json({ msg: "El apellido no debe contener números ni caracteres especiales" });
+  }
+
   const superAdminBDD = await SuperAdmin.findById(id);
   if (!superAdminBDD) {
     return res.status(404).json({ msg: `Lo sentimos, no existe el usuario` })
@@ -203,6 +213,22 @@ const crearEstudiante = async (req, res) => {
 
     if (!nombre || !apellido || !email || !password) {
       return res.status(400).json({ msg: "Todos los campos obligatorios deben estar llenos" });
+    }
+
+    const regexSoloLetras = /^[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+$/
+
+    if (!regexSoloLetras.test(nombre.trim())) {
+      return res.status(400).json({ msg: "El nombre no debe contener números ni caracteres especiales" })
+    }
+
+    if (!regexSoloLetras.test(apellido.trim())) {
+      return res.status(400).json({ msg: "El apellido no debe contener números ni caracteres especiales" })
+    }
+
+    const regexCelular = /^\d{10}$/
+    
+    if (celular && !regexCelular.test(celular)) {
+      return res.status(400).json({ msg: "El número celular debe contener exactamente 10 dígitos y sin letras ni símbolos" });
     }
 
     const existe = await Estudiante.findOne({ email });

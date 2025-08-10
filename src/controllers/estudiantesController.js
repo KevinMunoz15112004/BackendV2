@@ -60,6 +60,22 @@ const registroEstudiante = async (req, res) => {
       return res.status(400).json({ msg: "Lo sentimos, debes llenar todos los campos obligatorios" })
     }
 
+    const regexSoloLetras = /^[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+$/
+
+    if (!regexSoloLetras.test(nombre.trim())) {
+      return res.status(400).json({ msg: "El nombre no debe contener números ni caracteres especiales" })
+    }
+
+    if (!regexSoloLetras.test(apellido.trim())) {
+      return res.status(400).json({ msg: "El apellido no debe contener números ni caracteres especiales" })
+    }
+
+    const regexCelular = /^\d{10}$/
+    
+    if (celular && !regexCelular.test(celular)) {
+      return res.status(400).json({ msg: "El número celular debe contener exactamente 10 dígitos y sin letras ni símbolos" });
+    }
+
     const verificarEmailBDD = await Estudiante.findOne({ email })
     if (verificarEmailBDD) {
       return res.status(400).json({ msg: "Lo sentimos, el email ya se encuentra registrado" })
@@ -376,6 +392,12 @@ const crearPublicacion = async (req, res) => {
       return res.status(400).json({ msg: "Lo sentimos, debes llenar todos los campos" })
     }
 
+    const maxPalabrasTitulo = 10
+    const palabrasTitulo = titulo.trim().split(/\s+/)
+    if (palabrasTitulo.length > maxPalabrasTitulo) {
+      return res.status(400).json({ msg: `El título no debe exceder de ${maxPalabrasTitulo} palabras` })
+    }
+
     if (!req.estudianteBDD.redComunitaria) return res.status(400).json({ msg: "Para crear una publicación debes pertenecer a una red comunitaria" })
 
     if (!estudianteBDD.redComunitaria.some(r => r.equals(comunidadId))) {
@@ -525,6 +547,19 @@ const publicarArticulo = async (req, res) => {
       return res.status(400).json({ msg: "Debes completar todos los campos requeridos" })
     }
 
+    const maxPalabrasTitulo = 10
+    const palabrasTitulo = titulo.trim().split(/\s+/)
+    if (palabrasTitulo.length > maxPalabrasTitulo) {
+      return res.status(400).json({ msg: `El título no debe exceder de ${maxPalabrasTitulo} palabras` })
+    }
+
+    const precioStr = String(precio)
+
+    const regexPrecio = /^\d+(\.\d+)?$/
+    if (!regexPrecio.test(precioStr)) {
+      return res.status(400).json({ msg: "El precio debe ser un número válido sin letras" })
+    }
+
     const precioFloat = parseFloat(precio)
     if (isNaN(precioFloat) || precioFloat <= 0) {
       return res.status(400).json({ msg: "El precio debe ser un número válido mayor que 0" })
@@ -625,6 +660,12 @@ const actualizarArticulo = async (req, res) => {
 
     if (!articulo.autorId.equals(estudianteId)) {
       return res.status(403).json({ msg: 'No tienes permiso para actualizar este artículo' });
+    }
+
+    const maxPalabrasTitulo = 10
+    const palabrasTitulo = titulo.trim().split(/\s+/)
+    if (palabrasTitulo.length > maxPalabrasTitulo) {
+      return res.status(400).json({ msg: `El título no debe exceder de ${maxPalabrasTitulo} palabras` })
     }
 
     if (!titulo && !descripcion && !precio && !imagen) {
