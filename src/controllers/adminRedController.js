@@ -291,7 +291,7 @@ const verEstudiantesDeRed = async (req, res) => {
       return res.status(400).json({ msg: 'No tienes una red comunitaria asignada.' })
     }
 
-    const estudiantes = await Estudiante.find({ redComunitaria: redAsignada }).select('nombre apellido correo')
+    const estudiantes = await Estudiante.find({ redComunitaria: redAsignada }).select('nombre apellido email')
 
     if (estudiantes.length === 0) {
       return res.status(200).json({ msg: 'No hay estudiantes en tu red comunitaria', estudiantes: [] })
