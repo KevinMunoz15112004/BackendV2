@@ -245,6 +245,34 @@ const actualizarPerfilEstudiante = async (req, res) => {
     return res.status(400).json({ msg: "Lo sentimos, debes llenar al menos un campo para actualizar" })
   }
 
+  if (nombre !== undefined) {
+    const nombreRegex = /^[a-zA-ZÀ-ÿ\s]+$/;
+    if (!nombreRegex.test(nombre.trim())) {
+      return res.status(400).json({ msg: "El nombre sólo debe contener letras y espacios" });
+    }
+  }
+
+  if (apellido !== undefined) {
+    const apellidoRegex = /^[a-zA-ZÀ-ÿ\s]+$/;
+    if (!apellidoRegex.test(apellido.trim())) {
+      return res.status(400).json({ msg: "El apellido sólo debe contener letras y espacios" });
+    }
+  }
+
+  if (email !== undefined) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return res.status(400).json({ msg: "El email no es válido" });
+    }
+  }
+
+  if (celular !== undefined) {
+    const celularRegex = /^\d{10}$/;
+    if (!celularRegex.test(celular.trim())) {
+      return res.status(400).json({ msg: "El celular debe contener exactamente 10 dígitos numéricos" });
+    }
+  }
+
   const estudianteBDD = await Estudiante.findById(id)
   if (!estudianteBDD) {
     return res.status(404).json({ msg: `Lo sentimos, no existe el estudiante ${id}` })
