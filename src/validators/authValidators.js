@@ -1,6 +1,7 @@
 import { normalizeEmail, passwordField, trimAndNotEmpty } from './commonValidators.js'
 import { tokenParam, mongoIdParam } from './mongoValidators.js'
 import { body } from 'express-validator'
+import { nameValidator } from './stringValidators.js'
 
 const loginValidator = [
   normalizeEmail('email'),
@@ -37,8 +38,8 @@ const actualizarPasswordValidator = [
 
 const actualizarPerfilValidator = [
   // All optional, format-only
-  trimAndNotEmpty('nombre', { optional: true }),
-  trimAndNotEmpty('apellido', { optional: true }),
+  nameValidator('nombre', { optional: true }),
+  nameValidator('apellido', { optional: true }),
   trimAndNotEmpty('direccion', { optional: true }),
   // biografia: optional, string, max 150 chars
   body('biografia')
