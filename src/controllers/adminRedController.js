@@ -6,6 +6,7 @@ import { v2 as cloudinary } from 'cloudinary'
 import profileService from '../services/profileService.js'
 import Publicacion from '../models/Publicaciones.js'
 import { Articulo } from '../models/Articulos.js'
+import Comentario from '../models/Comentarios.js'
 import mongoose from 'mongoose'
 import RedComunitaria from '../models/RedComunitaria.js'
 
@@ -172,6 +173,15 @@ const eliminarPublicacionAdmin = async (req, res) => {
       return res.status(403).json({ msg: 'No tienes permiso para eliminar publicaciones de esta red' })
     }
 
+    // Eliminar comentarios asociados a la publicación
+    await Comentario.deleteMany({ postId: id })
+
+    // Remover la publicación de los guardados de los estudiantes
+    await Estudiante.updateMany(
+      { publicacionesGuardadas: id },
+      { $pull: { publicacionesGuardadas: id } }
+    )
+
     await Publicacion.findByIdAndDelete(id)
 
     return res.status(200).json({ msg: 'Publicación eliminada correctamente' })
@@ -237,6 +247,13 @@ const eliminarArticuloAdmin = async (req, res) => {
     if (!articulo.redComunitaria || articulo.redComunitaria.toString() !== redAsignada.toString()) {
       return res.status(403).json({ msg: 'No tienes permiso para eliminar artículos de esta red' })
     }
+
+
+    // Remover el artículo de los guardados de los estudiantes
+    await Estudiante.updateMany(
+      { publicacionesGuardadas: id },
+      { $pull: { publicacionesGuardadas: id } }
+    )
 
     await Articulo.findByIdAndDelete(id)
 

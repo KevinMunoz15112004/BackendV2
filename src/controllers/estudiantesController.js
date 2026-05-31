@@ -8,6 +8,7 @@ import fs from 'fs-extra'
 import mediaService from '../services/mediaService.js'
 import profileService from '../services/profileService.js'
 import Publicacion from "../models/Publicaciones.js"
+import Comentario from '../models/Comentarios.js'
 import RedComunitaria from '../models/RedComunitaria.js'
 import { getGlobalIds, getGlobalRedDoc, filterOutGlobalIds, populateExcludeGlobalMatch, getGlobalId } from '../helpers/globalRed.js'
 
@@ -230,7 +231,31 @@ const actualizarUsername = async (req, res) => {
     const estudiante = await Estudiante.findById(estudianteId)
     if (!estudiante) return res.status(404).json({ msg: 'Estudiante no encontrado' })
 
+    // Si el estudiante tiene la oportunidad concedida tras completar el perfil,
+    // permitir un cambio único y luego comenzar el conteo de 30 días.
+    const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
+
+    if (estudiante.usernameChangeAvailableAfterComplete) {
+      estudiante.username = usernameTrim
+      estudiante.lastUsernameChange = new Date()
+      estudiante.usernameChangeAvailableAfterComplete = false
+      await estudiante.save()
+      return res.status(200).json({ msg: 'Username actualizado', username: estudiante.username })
+    }
+
+    // Si ya hubo un cambio previo, exigir esperar 30 días desde `lastUsernameChange`.
+    const baseline = estudiante.lastUsernameChange || estudiante.createdAt
+    if (baseline) {
+      const elapsed = Date.now() - new Date(baseline).getTime()
+      if (elapsed < THIRTY_DAYS_MS) {
+        const remaining = Math.ceil((THIRTY_DAYS_MS - elapsed) / (24 * 60 * 60 * 1000))
+        return res.status(400).json({ msg: `No puedes cambiar el username aún. Espera ${remaining} día(s).` })
+      }
+    }
+
+    // Permitimos el cambio y registramos la fecha de cambio
     estudiante.username = usernameTrim
+    estudiante.lastUsernameChange = new Date()
     await estudiante.save()
 
     return res.status(200).json({ msg: 'Username actualizado', username: estudiante.username })
@@ -284,6 +309,8 @@ const completarPerfil = async (req, res) => {
       estudiante.biografia = bioTrim || null
     }
     estudiante.perfilCompleto = true
+    // Conceder una única oportunidad para cambiar username después de completar perfil
+    estudiante.usernameChangeAvailableAfterComplete = true
     await estudiante.save()
 
     return res.status(200).json({ msg: 'Perfil completado', usuario: {
@@ -655,6 +682,15 @@ const eliminarPublicacion = async (req, res) => {
       return res.status(403).json({ msg: 'No tienes permiso para eliminar esta publicación' })
     }
 
+    // Eliminar comentarios asociados a la publicación
+    await Comentario.deleteMany({ postId: id })
+
+    // Remover la publicación de los guardados de los estudiantes
+    await Estudiante.updateMany(
+      { publicacionesGuardadas: id },
+      { $pull: { publicacionesGuardadas: id } }
+    )
+
     await Publicacion.findByIdAndDelete(id)
 
     return res.status(200).json({ msg: 'Publicación eliminada correctamente' })
@@ -982,6 +1018,12 @@ const eliminarArticulo = async (req, res) => {
     if (!articulo.autorId.equals(estudianteId)) {
       return res.status(403).json({ msg: 'No tienes permiso para eliminar este artículo' })
     }
+
+    // Remover el artículo de los guardados de los estudiantes
+    await Estudiante.updateMany(
+      { publicacionesGuardadas: id },
+      { $pull: { publicacionesGuardadas: id } }
+    )
 
     await Articulo.findByIdAndDelete(id)
 

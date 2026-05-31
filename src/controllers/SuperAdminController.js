@@ -2,6 +2,8 @@ import SuperAdmin from '../models/SuperAdmin.js'
 import mongoose from 'mongoose'
 import Estudiante from '../models/Estudiantes.js'
 import RedComunitaria from '../models/RedComunitaria.js'
+import Publicacion from '../models/Publicaciones.js'
+import Comentario from '../models/Comentarios.js'
 import { v2 as cloudinary } from 'cloudinary'
 import fs from "fs-extra"
 import profileService from '../services/profileService.js'
@@ -536,6 +538,30 @@ const eliminarRed = async (req, res) => {
     const adminActivo = await AdminRed.findOne({ redId: red._id, estado: 'activo' })
     if (adminActivo) {
       return res.status(400).json({ msg: 'La red tiene un administrador activo. Debe revocar el admin antes de eliminar la red.' })
+    }
+
+    // Remover referencia de la red de los estudiantes que estaban suscritos
+    await Estudiante.updateMany(
+      { redComunitaria: id },
+      { $pull: { redComunitaria: id } }
+    )
+
+    // Buscar publicaciones pertenecientes a la red y limpiarlas
+    const publicaciones = await Publicacion.find({ comunidadId: id }).select('_id').lean()
+    const postIds = (publicaciones || []).map(p => p._id).filter(Boolean)
+
+    if (postIds.length > 0) {
+      // Eliminar comentarios de esas publicaciones
+      await Comentario.deleteMany({ postId: { $in: postIds } })
+
+      // Remover referencias a esas publicaciones en los guardados de estudiantes
+      await Estudiante.updateMany(
+        { publicacionesGuardadas: { $in: postIds } },
+        { $pull: { publicacionesGuardadas: { $in: postIds } } }
+      )
+
+      // Eliminar las publicaciones
+      await Publicacion.deleteMany({ _id: { $in: postIds } })
     }
 
     await RedComunitaria.findByIdAndDelete(id)

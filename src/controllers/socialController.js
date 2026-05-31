@@ -26,6 +26,14 @@ const solicitarCreacionRed = async (req, res) => {
     const existe = await RedComunitaria.findOne({ nombre: nombre.trim() })
     if (existe) return res.status(409).json({ msg: 'Ya existe una red con ese nombre' })
 
+    // No permitir crear otra solicitud si ya tiene una pendiente
+    const pending = await RedComunitaria.findOne({ creadaPor: estudianteId, estadoAprobacion: 'pendiente' })
+    if (pending) return res.status(400).json({ msg: 'Ya tienes una solicitud de red pendiente' })
+
+    // No permitir crear otra red si ya tiene una red aprobada creada por este estudiante
+    const owned = await RedComunitaria.findOne({ creadaPor: estudianteId, estadoAprobacion: 'aprobada' })
+    if (owned) return res.status(400).json({ msg: 'Ya posees una red comunitaria aprobada. Solo se permite una red por cuenta' })
+
     const nuevaRed = await RedComunitaria.create({
       nombre: nombre.trim(),
       descripcion: descripcion.trim(),
@@ -675,6 +683,25 @@ const resolverAprobacionRed = async (req, res) => {
       // Al rechazar, eliminamos la red y notificamos al creador
       const creadoPorId = red.creadaPor
       // `remove()` puede no estar disponible en algunas versiones de Mongoose;
+      // Limpiar referencias en estudiantes que tenían esta red antes de eliminarla
+      await Estudiante.updateMany(
+        { redComunitaria: red._id },
+        { $pull: { redComunitaria: red._id } }
+      )
+
+      // Buscar publicaciones de la red y limpiarlas (comentarios y guardados)
+      const publicaciones = await Publicacion.find({ comunidadId: red._id }).select('_id').lean()
+      const postIds = (publicaciones || []).map(p => p._id).filter(Boolean)
+
+      if (postIds.length > 0) {
+        await Comentario.deleteMany({ postId: { $in: postIds } })
+        await Estudiante.updateMany(
+          { publicacionesGuardadas: { $in: postIds } },
+          { $pull: { publicacionesGuardadas: { $in: postIds } } }
+        )
+        await Publicacion.deleteMany({ _id: { $in: postIds } })
+      }
+
       // usar `findByIdAndDelete` para eliminar de forma segura.
       await RedComunitaria.findByIdAndDelete(red._id)
 

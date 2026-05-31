@@ -78,6 +78,16 @@ const estudianteSchema = new Schema({
     ref: 'Publicacion',
     default: []
   }],
+  // Username change tracking
+  lastUsernameChange: {
+    type: Date,
+    default: null
+  },
+  // After completarPerfil, se concede una única oportunidad de cambiar username.
+  usernameChangeAvailableAfterComplete: {
+    type: Boolean,
+    default: false
+  },
   
 }, {
   timestamps: true
