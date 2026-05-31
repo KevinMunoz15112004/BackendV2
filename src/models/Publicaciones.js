@@ -39,6 +39,10 @@ const publicacionSchema = new mongoose.Schema({
     type: [String],
     default: []
   },
+  aspectRatio: {
+    type: Number,
+    default: 1.0
+  },
   // comentarios are stored in a separate `Comentario` collection; keep only the counter
   likes: [{
     type: mongoose.Schema.Types.ObjectId,

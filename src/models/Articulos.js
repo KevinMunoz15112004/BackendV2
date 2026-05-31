@@ -9,6 +9,7 @@ const articuloSchema = new mongoose.Schema({
     type: [String],
     default: []
   },
+  aspectRatio: { type: Number, default: 1.0 },
   categoria: { type: String, enum: ['venta', 'cursos'], default: 'venta' },
   autorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Estudiante' },
   redComunitaria: { type: mongoose.Schema.Types.ObjectId, ref: 'RedComunitaria' },

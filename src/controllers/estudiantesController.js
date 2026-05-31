@@ -540,7 +540,7 @@ const salirseDeRedComunitaria = async (req, res) => {
 
 const crearPublicacion = async (req, res) => {
   try {
-    const { titulo, contenido, comunidadId, categoria, tipoContenido, feedContext } = req.body
+    const { titulo, contenido, comunidadId, categoria, tipoContenido, feedContext, aspectRatio } = req.body
     const estudianteId = req.user?._id
     // `categoria` y campos relacionados son validados por los `validators` en las rutas
     const cat = String(categoria).trim().toLowerCase()
@@ -619,7 +619,8 @@ const crearPublicacion = async (req, res) => {
       contenido: contenido ? String(contenido).trim() : '',
       tipoContenido: tipo,
       categoria: cat,
-      mediaUrls: tipo === 'imagen' ? finalMediaUrls : []
+      mediaUrls: tipo === 'imagen' ? finalMediaUrls : [],
+      aspectRatio: aspectRatio ? Number(aspectRatio) : 1.0
     })
 
     await nuevaPublicacion.save()
@@ -759,7 +760,7 @@ const listarPublicacionesComunidades = async (req, res) => {
 
 const publicarArticulo = async (req, res) => {
   try {
-    const { titulo, descripcion, precio, comunidadId, categoria, tipoContenido, feedContext } = req.body
+    const { titulo, descripcion, precio, comunidadId, categoria, tipoContenido, feedContext, aspectRatio } = req.body
     const estudianteId = req.user?._id
 
     const estudianteBDD = await Estudiante.findById(estudianteId)
@@ -847,7 +848,8 @@ const publicarArticulo = async (req, res) => {
       precio: precioGuardado,
       mediaUrls: finalMediaUrls.length ? finalMediaUrls : [],
       categoria: articuloCategoria,
-      tipoContenido: tipo
+      tipoContenido: tipo,
+      aspectRatio: aspectRatio ? Number(aspectRatio) : 1.0
     })
 
     await nuevoArticulo.save()

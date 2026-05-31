@@ -117,13 +117,6 @@ Integración combinada: acciones que generan notificaciones (likes, comentarios,
 - Notificaciones agrupadas (notificación madre para likes) reduce I/O y spam de notificaciones.
 - Pusher externa permite escalar reparto de eventos sin mantener WebSocket state en el servidor.
 
-## Seguridad y buenas prácticas
-
-- Guardar `JWT_SECRET`, credenciales de DB, credenciales de Pusher/Nodemailer en variables de entorno.
-- No loguear información sensible en producción.
-- Validar y sanitizar todo input (ya implementado con `express-validator`).
-- Usar HTTPS en despliegue y forzar cabeceras CORS y políticas apropiadas.
-
 ## Despliegue y ejecución local
 
 Comandos útiles (desde la raíz):

@@ -218,7 +218,7 @@ const crearComentarioPublicacion = async (req, res) => {
     })
 
     // popular comentario con datos del usuario
-    const comentarioPop = await Comentario.findById(comentario._id).populate('userId', 'nombre apellido')
+    const comentarioPop = await Comentario.findById(comentario._id).populate('userId', 'nombre apellido username fotoPerfil')
 
     // Incrementar commentsCount de forma atómica
     await Model.updateOne({ _id: doc._id }, { $inc: { commentsCount: 1 } })
@@ -283,6 +283,9 @@ const responderComentario = async (req, res) => {
       contenido: contenido.trim(),
       parentId: comentarioPadre._id
     })
+    
+    // popular respuesta con datos del usuario
+    const respuestaPop = await Comentario.findById(respuesta._id).populate('userId', 'nombre apellido username fotoPerfil')
 
     comentarioPadre.hijos.push(respuesta._id)
     await comentarioPadre.save()
@@ -320,7 +323,7 @@ const responderComentario = async (req, res) => {
       });
     }
 
-    return res.status(201).json({ msg: 'Respuesta creada', respuesta })
+    return res.status(201).json({ msg: 'Respuesta creada', respuesta: respuestaPop })
   } catch (error) {
     console.error('Error al responder comentario:', error)
     return res.status(500).json({ msg: 'Error en el servidor' })
@@ -334,7 +337,7 @@ const listarComentariosArbol = async (req, res) => {
     // ID validado por validators en rutas
 
     const comentarios = await Comentario.find({ postId: id })
-      .populate('userId', 'nombre apellido email username')
+      .populate('userId', 'nombre apellido email username fotoPerfil')
       .sort({ createdAt: 1 })
       .lean()
 
