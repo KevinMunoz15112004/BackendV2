@@ -6,7 +6,6 @@ import validateResult from '../validators/validateResult.js'
 import { listarReportesUsuarios, listarReportesRedes, listarReportesApp, resolverReporteUsuario, resolverReporteRed, resolverReporteApp, listarSolicitudesVerificacion, resolverSolicitudVerificacion, listarSolicitudesRehabilitar, resolverSolicitudRehabilitar, deleteReporteUsuario, deleteReporteRed, deleteReporteApp } from '../controllers/reportesSolicitudesController.js'
 import { deleteSolicitudRehabilitar, deleteSolicitudHabilitarUsuario, deleteSolicitudVerificacion } from '../controllers/reportesSolicitudesController.js'
 import { autenticarToken, isSuperAdmin } from '../middlewares/authSuperAdmin.js'
-import { verificarEstadoLogin } from '../middlewares/verificarLogin.js'
 import { listarSolicitudesHabilitarUsuarios, resolverSolicitudHabilitarUsuario } from '../controllers/reportesSolicitudesController.js'
 
 const router = Router()
@@ -15,7 +14,7 @@ const router = Router()
 router.post('/recuperar-password', validators.recuperarPasswordValidator, validateResult, recuperarPassword)
 router.get('/recuperar-password/:token', validators.tokenParam('token'), validateResult, comprobarTokenPassword)
 router.post('/nuevo-password/:token', validators.crearNuevoPasswordValidator, validateResult, crearNuevoPassword)
-router.post('/login', verificarEstadoLogin, validators.loginValidator, validateResult, login)
+router.post('/login', validators.loginValidator, validateResult, login)
 router.get('/perfil-superadmin', autenticarToken, isSuperAdmin, perfil)
 router.patch('/actualizar-superadmin/', autenticarToken, isSuperAdmin,
 	validators.actualizarPerfilValidator,
