@@ -4,6 +4,7 @@ import RedComunitaria from '../models/RedComunitaria.js'
 import Publicacion from '../models/Publicaciones.js'
 import Estudiante from '../models/Estudiantes.js'
 import AdminRed from '../models/adminRedes.js'
+import Comentario from '../models/Comentarios.js'
 import { crearNotificacion } from '../helpers/notificaciones.js'
 import { triggerUserChannel } from '../config/pusher.js'
 
@@ -287,18 +288,24 @@ const resolverReportePublicacionAdmin = async (req, res) => {
       reporte.estado = 'rechazado'
       if (respuesta) reporte.respuesta = respuesta
       await reporte.save()
-      const reportePop = await ReporteUnificado.findById(reporte._id).populate('meta.publicacionId').populate('meta.redId', 'nombre').populate('reporterId', 'nombre apellido fotoPerfil email')
+      const reportePop = await ReporteUnificado.findById(reporte._id)
+        .populate('meta.publicacionId')
+        .populate('meta.redId', 'nombre')
+        .populate('reporterId', 'nombre apellido fotoPerfil email')
       return res.status(200).json({ msg: 'Reporte rechazado', reporte: reportePop })
     }
 
-    // Resuelto: eliminar publicación
+    // Resuelto: eliminar publicación con cascada
     reporte.estado = 'resuelto'
     if (respuesta) reporte.respuesta = respuesta
     await reporte.save()
 
     const publicacion = await Publicacion.findById(reporte.meta.publicacionId)
     if (!publicacion) {
-      const reportePop = await ReporteUnificado.findById(reporte._id).populate('meta.publicacionId').populate('meta.redId', 'nombre').populate('reporterId', 'nombre apellido fotoPerfil email')
+      const reportePop = await ReporteUnificado.findById(reporte._id)
+        .populate('meta.publicacionId')
+        .populate('meta.redId', 'nombre')
+        .populate('reporterId', 'nombre apellido fotoPerfil email')
       return res.status(200).json({ msg: 'Reporte resuelto. La publicación no existe (posible eliminación previa)', reporte: reportePop })
     }
 
@@ -306,10 +313,22 @@ const resolverReportePublicacionAdmin = async (req, res) => {
       return res.status(403).json({ msg: 'No estás autorizado para eliminar la publicación' })
     }
 
+    // Cascada
+    await Comentario.deleteMany({ postId: publicacion._id })
+
+    await Estudiante.updateMany(
+      { publicacionesGuardadas: publicacion._id },
+      { $pull: { publicacionesGuardadas: publicacion._id } }
+    )
+
     await Publicacion.findByIdAndDelete(publicacion._id)
 
-    const reportePop = await ReporteUnificado.findById(reporte._id).populate('meta.publicacionId').populate('meta.redId', 'nombre').populate('reporterId', 'nombre apellido fotoPerfil email')
+    const reportePop = await ReporteUnificado.findById(reporte._id)
+      .populate('meta.publicacionId')
+      .populate('meta.redId', 'nombre')
+      .populate('reporterId', 'nombre apellido fotoPerfil email')
     return res.status(200).json({ msg: 'Reporte resuelto y publicación eliminada', reporte: reportePop })
+
   } catch (error) {
     console.error(error)
     return res.status(500).json({ msg: 'Error en el servidor' })
@@ -320,8 +339,17 @@ const listarReportesAdminRed = async (req, res) => {
   try {
     const admin = req.user
     if (!admin.redAsignada) return res.status(400).json({ msg: 'No tienes red asignada' })
-    const reportes = await ReporteUnificado.find({ subtype: 'publicacion', 'meta.redId': admin.redAsignada }).populate('meta.publicacionId').populate('reporterId', 'nombre apellido fotoPerfil email').sort({ createdAt: -1 })
+
+    const reportes = await ReporteUnificado.find({ 
+      subtype: 'publicacion', 
+      'meta.redId': admin.redAsignada 
+    })
+      .populate('meta.publicacionId', 'titulo contenido tipoContenido mediaUrls')
+      .populate('reporterId', 'nombre apellido fotoPerfil email')
+      .sort({ createdAt: -1 })
+
     return res.status(200).json({ reportes })
+
   } catch (error) {
     console.error(error)
     return res.status(500).json({ msg: 'Error en el servidor' })
