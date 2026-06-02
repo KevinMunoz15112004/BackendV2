@@ -5,7 +5,7 @@ import { requirePerfilCompleto, disallowPerfilCompleto } from '../middlewares/ch
 import { verifyToken, optionalVerifyToken } from '../middlewares/auth.js'
 import validators from '../validators/index.js'
 import validateResult from '../validators/validateResult.js'
-import { crearSolicitudHabilitarUsuario, crearReporteRed } from '../controllers/reportesSolicitudesController.js'
+import { crearSolicitudHabilitarUsuario, crearReporteRed, crearSolicitudPostularAdminRed } from '../controllers/reportesSolicitudesController.js'
 
 const router = Router()
 
@@ -57,5 +57,7 @@ router.post('/estudiantes/solicitud-habilitar', optionalVerifyToken, validators.
 // Estudiante: reportes sobre redes
 router.post('/estudiantes/reportes/red', verifyToken, validators.mongoIdBody('redId'), validateResult, crearReporteRed)
 
+// Estudiante: solicitar ser admin de red comunitaria
+router.post('/estudiantes/solicitud/postular/admin-red', verifyToken, validators.mongoIdBody('redId'), validators.trimAndNotEmpty('descripcion'), validateResult, crearSolicitudPostularAdminRed)
 
 export default router

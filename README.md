@@ -33,8 +33,8 @@ Para clonar este respositorio se lo hace mediante:
 
 <pre>git clone https://github.com/KevinMunoz15112004/BackendV2</pre>
 
-Este backend fue desplegado en Render, se puede acceder mediante la siguiente URL:
-<pre>https://backendv2-as6n.onrender.com</pre>
+Este backend fue desplegado en Vercel, se puede acceder mediante la siguiente URL:
+<pre>proximamente</pre>
 
 La documentación de cada uno de los endpoints se encuentra en:
 <pre>https://documenter.getpostman.com/view/45783834/2sB2x6nCWY</pre>

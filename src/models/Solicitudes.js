@@ -1,7 +1,7 @@
 import { Schema, model } from 'mongoose'
 
 const solicitudesSchema = new Schema({
-  subtype: { type: String, required: true, enum: ['verificacion', 'rehabilitar_red', 'habilitar_usuario'] },
+  subtype: { type: String, required: true, enum: ['verificacion', 'rehabilitar_red', 'habilitar_usuario', 'revocar_admin_red', 'postular_admin_red' ] },
   solicitante: { type: Schema.Types.ObjectId, ref: 'Estudiante', required: true },
   descripcion: { type: String, trim: true, default: '' },
   estado: { type: String, enum: ['pendiente', 'aprobada', 'rechazada'], default: 'pendiente' },

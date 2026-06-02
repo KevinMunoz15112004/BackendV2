@@ -6,7 +6,7 @@ import validateResult from '../validators/validateResult.js'
 import { listarReportesUsuarios, listarReportesRedes, listarReportesApp, resolverReporteUsuario, resolverReporteRed, resolverReporteApp, listarSolicitudesVerificacion, resolverSolicitudVerificacion, listarSolicitudesRehabilitar, resolverSolicitudRehabilitar, deleteReporteUsuario, deleteReporteRed, deleteReporteApp } from '../controllers/reportesSolicitudesController.js'
 import { deleteSolicitudRehabilitar, deleteSolicitudHabilitarUsuario, deleteSolicitudVerificacion } from '../controllers/reportesSolicitudesController.js'
 import { autenticarToken, isSuperAdmin } from '../middlewares/authSuperAdmin.js'
-import { listarSolicitudesHabilitarUsuarios, resolverSolicitudHabilitarUsuario } from '../controllers/reportesSolicitudesController.js'
+import { listarSolicitudesHabilitarUsuarios, resolverSolicitudHabilitarUsuario, resolverSolicitudPostularAdminRed, resolverSolicitudRevocarAdminRed, obtenerSolicitudesPostularAdminRed, obtenerSolicitudesRevocarAdminRed } from '../controllers/reportesSolicitudesController.js'
 
 const router = Router()
 
@@ -36,6 +36,7 @@ router.get('/redes', autenticarToken, isSuperAdmin, obtenerRedes)
 router.get('/red/:id', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validateResult, obtenerRedPorId)
 router.patch('/actualizar-red/:id', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validators.title('nombre', { optional: true }), validators.description('descripcion', { optional: true }), validators.booleanBody('deshabilitada', { optional: true }), validateResult, actualizarRed)
 router.delete('/eliminar-red/:id', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validateResult, eliminarRed)
+
 // Marcar red como verificada (SuperAdmin)
 router.patch('/red/:id/verificada', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validators.booleanBody('verificada', { optional: true }), validateResult, marcarRedVerificada)
 
@@ -64,5 +65,11 @@ router.patch('/superadmin/solicitudes/habilitar-usuarios/:id/resolver', autentic
 // Solicitudes de rehabilitar redes (creadas por admin_red)
 router.get('/redes/rehabilitar/solicitudes', autenticarToken, isSuperAdmin, listarSolicitudesRehabilitar)
 router.patch('/redes/rehabilitar/solicitudes/:id/resolver', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validateResult, resolverSolicitudRehabilitar)
+
+// Solicitudes de revocar admin de red y postular como admin de red
+router.patch('/red/:id/resolver/revocar-rol', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validateResult, resolverSolicitudRevocarAdminRed)
+router.patch('/red/:id/resolver/postular-rol', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validateResult, resolverSolicitudPostularAdminRed)
+router.get('/red/solicitudes/listar/postular-rol', autenticarToken, isSuperAdmin, obtenerSolicitudesPostularAdminRed)
+router.get('/red/solicitudes/listar/revocar-rol', autenticarToken, isSuperAdmin, obtenerSolicitudesRevocarAdminRed)
 
 export default router

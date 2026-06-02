@@ -4,6 +4,8 @@ import RedComunitaria from '../models/RedComunitaria.js'
 import Publicacion from '../models/Publicaciones.js'
 import Estudiante from '../models/Estudiantes.js'
 import AdminRed from '../models/adminRedes.js'
+import { crearNotificacion } from '../helpers/notificaciones.js'
+import { triggerUserChannel } from '../config/pusher.js'
 
 // Helpers
 const mapEstadoFromBody = (valor) => {
@@ -631,6 +633,351 @@ const resolverSolicitudVerificacion = async (req, res) => {
   }
 }
 
+const crearSolicitudRevocarAdminRed = async (req, res) => {
+  try {
+    const solicitanteId = req.user?._id
+    const { redId, descripcion } = req.body
+
+    const red = await RedComunitaria.findById(redId)
+    if (!red) return res.status(404).json({ msg: 'Red no encontrada' })
+
+    // Verificar que sea el admin activo de esa red
+    const adminRelation = await AdminRed.findOne({ usuarioId: solicitanteId, redId, estado: 'activo' })
+    const esCreador = red.creadaPor && red.creadaPor.equals(solicitanteId)
+    if (!adminRelation && !esCreador) return res.status(403).json({ msg: 'Solo el admin activo de la red puede solicitar revocar su rol' })
+
+    // Verificar que no haya solicitud pendiente previa
+    const existePendiente = await SolicitudUnificada.findOne({
+      subtype: 'revocar_admin_red',
+      'meta.redId': redId,
+      solicitante: solicitanteId,
+      estado: 'pendiente'
+    })
+    if (existePendiente) return res.status(400).json({ msg: 'Ya existe una solicitud pendiente para revocar tu rol en esta red' })
+
+    const nueva = await SolicitudUnificada.create({
+      subtype: 'revocar_admin_red',
+      solicitante: solicitanteId,
+      descripcion: descripcion.trim(),
+      meta: { redId, motivo: descripcion.trim() }
+    })
+
+    const pop = await SolicitudUnificada.findById(nueva._id)
+      .populate('meta.redId', 'nombre deshabilitada')
+      .populate('solicitante', 'nombre apellido fotoPerfil email')
+
+    return res.status(201).json({ msg: 'Solicitud de revocación creada, será revisada por un administrador', solicitud: pop })
+
+  } catch (error) {
+    console.error(error)
+    return res.status(500).json({ msg: 'Error en el servidor' })
+  }
+}
+
+const resolverSolicitudRevocarAdminRed = async (req, res) => {
+  try {
+    const { id } = req.params
+    const { accion, respuesta } = req.body
+
+    if (!['Aprobar', 'Rechazar'].includes(accion)) return res.status(400).json({ msg: 'Acción inválida. Solo "Aprobar" o "Rechazar"' })
+
+    const solicitud = await SolicitudUnificada.findById(id)
+    if (!solicitud || solicitud.subtype !== 'revocar_admin_red') return res.status(404).json({ msg: 'Solicitud no encontrada' })
+    if (solicitud.estado !== 'pendiente') return res.status(400).json({ msg: 'La solicitud ya fue resuelta' })
+
+    const red = await RedComunitaria.findById(solicitud.meta.redId)
+    if (!red) return res.status(404).json({ msg: 'Red no encontrada' })
+
+    const user = await Estudiante.findById(solicitud.solicitante)
+    if (!user) return res.status(404).json({ msg: 'Usuario no encontrado' })
+
+    if (accion === 'Rechazar') {
+      solicitud.estado = 'rechazada'
+      if (respuesta) solicitud.respuesta = respuesta
+      await solicitud.save()
+      const pop = await SolicitudUnificada.findById(solicitud._id)
+        .populate('meta.redId', 'nombre deshabilitada')
+        .populate('solicitante', 'nombre apellido fotoPerfil email')
+      return res.status(200).json({ msg: 'Solicitud rechazada', solicitud: pop })
+    }
+
+    // Aprobar
+
+    // Marcar relación como revocada
+    const rel = await AdminRed.findOne({ usuarioId: user._id, redId: red._id })
+    if (rel) {
+      rel.estado = 'revocado'
+      await rel.save()
+    }
+
+    // Quitar rol admin_red del usuario
+    if (Array.isArray(user.roles) && user.roles.includes('admin_red')) {
+      user.roles = user.roles.filter(r => r !== 'admin_red')
+      await user.save()
+    }
+
+    // Si era el creador de la red, limpiar creadaPor
+    const wasCreator = red.creadaPor && red.creadaPor.toString() === user._id.toString()
+    if (wasCreator) {
+      red.creadaPor = null
+      await red.save()
+    }
+
+    // Resolver la solicitud
+    solicitud.estado = 'aprobada'
+    if (respuesta) solicitud.respuesta = respuesta
+    await solicitud.save()
+
+    // Notificar al usuario
+    const emisorIdVal = req.user?._id || null
+    const notificacion = await crearNotificacion({
+      usuarioId: user._id,
+      emisorId: emisorIdVal,
+      tipo: 'mensaje',
+      mensaje: solicitud.meta.motivo || `Tu solicitud de revocación como admin de la red ${red.nombre} fue aprobada`
+    })
+
+    let emisorData = null
+    if (emisorIdVal) {
+      emisorData = await Estudiante.findById(emisorIdVal).select('nombre apellido username fotoPerfil').lean()
+    }
+
+    await triggerUserChannel(user._id.toString(), 'nueva_notificacion', {
+      _id: notificacion._id.toString(),
+      tipo: notificacion.tipo,
+      emisorSnap: emisorData,
+      mensaje: notificacion.mensaje,
+      leida: false,
+      createdAt: notificacion.createdAt,
+      updatedAt: notificacion.updatedAt
+    })
+
+    const pop = await SolicitudUnificada.findById(solicitud._id)
+      .populate('meta.redId', 'nombre deshabilitada')
+      .populate('solicitante', 'nombre apellido fotoPerfil email')
+
+    return res.status(200).json({ msg: 'Solicitud aprobada. Rol revocado correctamente', solicitud: pop })
+
+  } catch (error) {
+    console.error(error)
+    return res.status(500).json({ msg: 'Error en el servidor' })
+  }
+}
+
+const crearSolicitudPostularAdminRed = async (req, res) => {
+  try {
+    const solicitanteId = req.user?._id
+    const { redId, descripcion } = req.body
+
+    const red = await RedComunitaria.findById(redId)
+    if (!red) return res.status(404).json({ msg: 'Red no encontrada' })
+
+    // Solo aplica si la red no tiene admin
+    if (red.creadaPor) return res.status(400).json({ msg: 'La red ya tiene un administrador asignado' })
+
+    // La red debe estar activa
+    if (red.deshabilitada) return res.status(400).json({ msg: 'No puedes postularte en una red deshabilitada' })
+
+    // El solicitante debe ser miembro de la red
+    const esMiembro = red.miembros.some(m => m.equals(solicitanteId))
+    if (!esMiembro) return res.status(403).json({ msg: 'Debes ser miembro de la red para postularte como administrador' })
+
+    // No puede postularse si ya tiene una postulación pendiente para esta red
+    const existePendiente = await SolicitudUnificada.findOne({
+      subtype: 'postular_admin_red',
+      'meta.redId': redId,
+      solicitante: solicitanteId,
+      estado: 'pendiente'
+    })
+    if (existePendiente) return res.status(400).json({ msg: 'Ya tienes una postulación pendiente para esta red' })
+
+    const nueva = await SolicitudUnificada.create({
+      subtype: 'postular_admin_red',
+      solicitante: solicitanteId,
+      descripcion: descripcion.trim(),
+      meta: { redId, motivo: descripcion.trim() }
+    })
+
+    const pop = await SolicitudUnificada.findById(nueva._id)
+      .populate('meta.redId', 'nombre deshabilitada')
+      .populate('solicitante', 'nombre apellido fotoPerfil email')
+
+    return res.status(201).json({ msg: 'Postulación enviada, será revisada por un administrador', solicitud: pop })
+
+  } catch (error) {
+    console.error(error)
+    return res.status(500).json({ msg: 'Error en el servidor' })
+  }
+}
+
+const resolverSolicitudPostularAdminRed = async (req, res) => {
+  try {
+    const { id } = req.params
+    const { accion, respuesta } = req.body
+
+    if (!['Aprobar', 'Rechazar'].includes(accion)) return res.status(400).json({ msg: 'Acción inválida. Solo "Aprobar" o "Rechazar"' })
+
+    const solicitud = await SolicitudUnificada.findById(id)
+    if (!solicitud || solicitud.subtype !== 'postular_admin_red') return res.status(404).json({ msg: 'Solicitud no encontrada' })
+    if (solicitud.estado !== 'pendiente') return res.status(400).json({ msg: 'La solicitud ya fue resuelta' })
+
+    const red = await RedComunitaria.findById(solicitud.meta.redId)
+    if (!red) return res.status(404).json({ msg: 'Red no encontrada' })
+
+    // Verificar que la red siga sin admin al momento de resolver
+    if (red.creadaPor) return res.status(400).json({ msg: 'La red ya tiene un administrador asignado' })
+
+    const user = await Estudiante.findById(solicitud.solicitante)
+    if (!user) return res.status(404).json({ msg: 'Usuario no encontrado' })
+
+    if (accion === 'Rechazar') {
+      solicitud.estado = 'rechazada'
+      if (respuesta) solicitud.respuesta = respuesta
+      await solicitud.save()
+      const pop = await SolicitudUnificada.findById(solicitud._id)
+        .populate('meta.redId', 'nombre deshabilitada')
+        .populate('solicitante', 'nombre apellido fotoPerfil email')
+      return res.status(200).json({ msg: 'Postulación rechazada', solicitud: pop })
+    }
+
+    // Aprobar: misma lógica de asignarDuenoRed
+
+    // Añadir rol admin_red si no lo tiene
+    if (!Array.isArray(user.roles)) user.roles = []
+    if (!user.roles.includes('admin_red')) {
+      user.roles.push('admin_red')
+      await user.save()
+    }
+
+    // Añadir red a user.redComunitaria si no está
+    if (!Array.isArray(user.redComunitaria)) user.redComunitaria = []
+    if (!user.redComunitaria.some(rid => rid.toString() === red._id.toString())) {
+      user.redComunitaria.push(red._id)
+      await user.save()
+    }
+
+    // Crear o reactivar relación en AdminRed
+    const existeRel = await AdminRed.findOne({ usuarioId: user._id, redId: red._id })
+    if (!existeRel) {
+      await AdminRed.create({
+        usuarioId: user._id,
+        redId: red._id,
+        estado: 'activo',
+        permisos: ['gestion_publicaciones', 'gestionar_miembros'],
+        fechaAprobacion: new Date()
+      })
+    } else {
+      if (existeRel.estado !== 'activo') {
+        existeRel.estado = 'activo'
+        existeRel.fechaAprobacion = new Date()
+        await existeRel.save()
+      }
+    }
+
+    // Asignar como nuevo admin de la red
+    red.creadaPor = user._id
+    if (!red.miembros.some(mid => mid.toString() === user._id.toString())) {
+      red.miembros.push(user._id)
+      red.cantidadMiembros = red.miembros.length
+    }
+    await red.save()
+
+    // Rechazar automáticamente las demás postulaciones pendientes para esta red
+    await SolicitudUnificada.updateMany(
+      {
+        subtype: 'postular_admin_red',
+        'meta.redId': red._id,
+        estado: 'pendiente',
+        _id: { $ne: solicitud._id }
+      },
+      {
+        estado: 'rechazada',
+        respuesta: 'Se seleccionó otro administrador para la red'
+      }
+    )
+
+    // Resolver la solicitud
+    solicitud.estado = 'aprobada'
+    if (respuesta) solicitud.respuesta = respuesta
+    await solicitud.save()
+
+    // Notificar al nuevo admin
+    const emisorIdVal = req.user?._id || null
+    const notificacion = await crearNotificacion({
+      usuarioId: user._id,
+      emisorId: emisorIdVal,
+      tipo: 'mensaje',
+      mensaje: `Tu postulación fue aprobada. Ahora eres administrador de la red ${red.nombre}`
+    })
+
+    let emisorData = null
+    if (emisorIdVal) {
+      emisorData = await Estudiante.findById(emisorIdVal).select('nombre apellido username fotoPerfil').lean()
+    }
+
+    await triggerUserChannel(user._id.toString(), 'nueva_notificacion', {
+      _id: notificacion._id.toString(),
+      tipo: notificacion.tipo,
+      emisorSnap: emisorData,
+      mensaje: notificacion.mensaje,
+      leida: false,
+      createdAt: notificacion.createdAt,
+      updatedAt: notificacion.updatedAt
+    })
+
+    const pop = await SolicitudUnificada.findById(solicitud._id)
+      .populate('meta.redId', 'nombre deshabilitada')
+      .populate('solicitante', 'nombre apellido fotoPerfil email')
+
+    return res.status(200).json({ msg: 'Postulación aprobada. Nuevo administrador asignado', solicitud: pop })
+
+  } catch (error) {
+    console.error(error)
+    return res.status(500).json({ msg: 'Error en el servidor' })
+  }
+}
+
+const obtenerSolicitudesPostularAdminRed = async (req, res) => {
+  try {
+    const { estado } = req.query
+    // estado es opcional, si no se envía trae todas
+
+    const filtro = { subtype: 'postular_admin_red' }
+    if (estado) filtro.estado = estado
+
+    const solicitudes = await SolicitudUnificada.find(filtro)
+      .populate('meta.redId', 'nombre deshabilitada fotoPerfil cantidadMiembros')
+      .populate('solicitante', 'nombre apellido fotoPerfil email username')
+      .sort({ createdAt: -1 })
+
+    return res.status(200).json({ solicitudes })
+
+  } catch (error) {
+    console.error(error)
+    return res.status(500).json({ msg: 'Error en el servidor' })
+  }
+}
+
+const obtenerSolicitudesRevocarAdminRed = async (req, res) => {
+  try {
+    const { estado } = req.query
+
+    const filtro = { subtype: 'revocar_admin_red' }
+    if (estado) filtro.estado = estado
+
+    const solicitudes = await SolicitudUnificada.find(filtro)
+      .populate('meta.redId', 'nombre deshabilitada fotoPerfil cantidadMiembros')
+      .populate('solicitante', 'nombre apellido fotoPerfil email username')
+      .sort({ createdAt: -1 })
+
+    return res.status(200).json({ solicitudes })
+
+  } catch (error) {
+    console.error(error)
+    return res.status(500).json({ msg: 'Error en el servidor' })
+  }
+}
+
 export {
   crearReportePublicacion,
   crearReporteRed,
@@ -662,5 +1009,11 @@ export {
   deleteSolicitudVerificacion,
   deleteSolicitudRehabilitarByAdmin,
   listarMisSolicitudesRehabilitar,
-  listarMisSolicitudesVerificacion
+  listarMisSolicitudesVerificacion,
+  crearSolicitudRevocarAdminRed,
+  resolverSolicitudRevocarAdminRed,
+  crearSolicitudPostularAdminRed,
+  resolverSolicitudPostularAdminRed,
+  obtenerSolicitudesPostularAdminRed,
+  obtenerSolicitudesRevocarAdminRed
 }

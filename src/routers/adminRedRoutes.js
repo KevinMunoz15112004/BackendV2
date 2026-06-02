@@ -4,7 +4,7 @@ import { actualizarAvatarAdminRed, perfilAdminRed, actualizarPerfilAdminRed, act
 import validators from '../validators/index.js'
 import validateResult from '../validators/validateResult.js'
 import { resolverReportePublicacionAdmin, crearSolicitudVerificacion, deleteReportePublicacionAdmin, listarMisSolicitudesRehabilitar, listarMisSolicitudesVerificacion } from '../controllers/reportesSolicitudesController.js'
-import { crearSolicitudRehabilitar, deleteSolicitudRehabilitarByAdmin } from '../controllers/reportesSolicitudesController.js'
+import { crearSolicitudRehabilitar, deleteSolicitudRehabilitarByAdmin, crearSolicitudRevocarAdminRed } from '../controllers/reportesSolicitudesController.js'
 
 const router = Router()
 
@@ -39,5 +39,8 @@ router.post('/solicitudes/rehabilitar', verifyToken, requireRole('admin_red'), v
 
 // Admin Red:solicitar verificación/oficialización de su red (solo su red asignada)
 router.post('/redes/solicitar-verificacion', verifyToken, requireRole('admin_red'), validators.mongoIdBody('redId'), validators.trimAndNotEmpty('descripcion'), validateResult, crearSolicitudVerificacion)
+
+// Admin Red: solicitar revocar admin de red actual
+router.post('/redes/solicitar/revocar-admin', verifyToken, requireRole('admin_red'), validators.mongoIdBody('redId'), validators.trimAndNotEmpty('descripcion'), validateResult, crearSolicitudRevocarAdminRed)
 
 export default router
