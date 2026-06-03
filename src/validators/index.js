@@ -34,9 +34,10 @@ export const validators = {
   // report validators
   reportPublicacionValidator: report.reportPublicacionValidator,
   reportAppValidator: report.reportAppValidator,
-  reportUsuarioValidator: report.reportUsuarioValidator
-  ,
-  rehabilitarUsuarioValidator: report.rehabilitarUsuarioValidator
+  reportUsuarioValidator: report.reportUsuarioValidator,
+  rehabilitarUsuarioValidator: report.rehabilitarUsuarioValidator,
+  listarReportesValidator: report.listarReportesValidator,
+  listarSolicitudesValidator: report.listarSolicitudesValidator
 }
 
 // content

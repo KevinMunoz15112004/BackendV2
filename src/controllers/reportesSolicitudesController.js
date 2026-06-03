@@ -7,17 +7,7 @@ import AdminRed from '../models/adminRedes.js'
 import Comentario from '../models/Comentarios.js'
 import { crearNotificacion } from '../helpers/notificaciones.js'
 import { triggerUserChannel } from '../config/pusher.js'
-
-// Helpers
-const mapEstadoFromBody = (valor) => {
-  if (!valor) return null
-  if (valor === 'Resuelta' || valor === 'resuelta') return 'resuelto'
-  if (valor === 'Rechazada' || valor === 'rechazada') return 'rechazado'
-  // allow direct normalized values
-  const v = String(valor).toLowerCase()
-  if (['pendiente','en_progreso','resuelto','rechazado','aprobada'].includes(v)) return v
-  return null
-}
+import { mapEstadoFromBody, listarReportesPorSubtype, listarSolicitudesPorSubtype } from '../helpers/reportHelpers.js'
 
 // Create report: publication
 const crearReportePublicacion = async (req, res) => {
@@ -89,7 +79,8 @@ const crearReporteApp = async (req, res) => {
 // Create report: usuario
 const crearReporteUsuario = async (req, res) => {
   try {
-    const { tipo, descripcion, reportadoUsuarioId, archivos = [] } = req.body
+    const { tipo, descripcion, reportadoUsuarioId, publicacionId, redId, archivos = [] } = req.body
+    
     const usuario = await Estudiante.findById(reportadoUsuarioId)
     if (!usuario) return res.status(404).json({ msg: 'Usuario reportado no encontrado' })
 
@@ -99,10 +90,18 @@ const crearReporteUsuario = async (req, res) => {
       descripcion: descripcion ? descripcion.trim() : '',
       reporterId: req.estudianteBDD ? req.estudianteBDD._id : (req.user?._id || null),
       archivos,
-      meta: { reportadoUsuarioId }
+      meta: { 
+        reportadoUsuarioId,
+        publicacionId: publicacionId || null,
+        redId: redId || null
+      }
     })
 
-    const pop = await ReporteUnificado.findById(nuevo._id).populate('meta.reportadoUsuarioId', 'nombre apellido fotoPerfil email').populate('reporterId', 'nombre apellido fotoPerfil email')
+    const pop = await ReporteUnificado.findById(nuevo._id)
+      .populate('meta.reportadoUsuarioId', 'nombre apellido fotoPerfil email')
+      .populate('meta.publicacionId', 'titulo contenido tipoContenido categoria')
+      .populate('meta.redId', 'nombre fotoPerfil esVerificada')
+      .populate('reporterId', 'nombre apellido fotoPerfil email')
     return res.status(201).json({ msg: 'Reporte creado', reporte: pop })
   } catch (error) {
     console.error(error)
@@ -110,38 +109,19 @@ const crearReporteUsuario = async (req, res) => {
   }
 }
 
-// List helpers
-const listarReportesPorSubtype = (subtype, populate = []) => {
-  const q = ReporteUnificado.find({ subtype }).sort({ createdAt: -1 }).populate('reporterId', 'nombre apellido fotoPerfil email')
-  populate.forEach(p => { q.populate(p) })
-  return q
-}
+const listarReportes = async (req, res) => {
+  const { subtype } = req.params
+  const { estado } = req.query
 
-const listarReportesUsuarios = async (req, res) => {
-  try {
-    const q = listarReportesPorSubtype('usuario', [{ path: 'meta.reportadoUsuarioId', select: 'nombre apellido fotoPerfil email' }])
-    const reportes = await q.exec()
-    return res.status(200).json({ reportes })
-  } catch (error) {
-    console.error(error)
-    return res.status(500).json({ msg: 'Error en el servidor' })
+  const populateMap = {
+    usuario: [{ path: 'meta.reportadoUsuarioId', select: 'nombre apellido fotoPerfil email' }],
+    red: ['meta.redId'],
+    app: [],
+    publicacion: [{ path: 'meta.publicacionId', select: 'contenido' }]
   }
-}
 
-const listarReportesRedes = async (req, res) => {
   try {
-    const q = listarReportesPorSubtype('red', ['meta.redId'])
-    const reportes = await q.exec()
-    return res.status(200).json({ reportes })
-  } catch (error) {
-    console.error(error)
-    return res.status(500).json({ msg: 'Error en el servidor' })
-  }
-}
-
-const listarReportesApp = async (req, res) => {
-  try {
-    const q = listarReportesPorSubtype('app')
+    const q = listarReportesPorSubtype(subtype, populateMap[subtype], estado)
     const reportes = await q.exec()
     return res.status(200).json({ reportes })
   } catch (error) {
@@ -452,37 +432,6 @@ const crearSolicitudHabilitarUsuario = async (req, res) => {
     const nueva = await SolicitudUnificada.create({ subtype: 'habilitar_usuario', solicitante: solicitanteId, descripcion: motivo.trim(), meta: { motivo } })
     const pop = await SolicitudUnificada.findById(nueva._id).populate('solicitante', 'nombre apellido fotoPerfil email')
     return res.status(201).json({ msg: 'Solicitud creada', solicitud: pop })
-  } catch (error) {
-    console.error(error)
-    return res.status(500).json({ msg: 'Error en el servidor' })
-  }
-}
-
-// List solicitudes
-const listarSolicitudesVerificacion = async (req, res) => {
-  try {
-    const solicitudes = await SolicitudUnificada.find({ subtype: 'verificacion' }).populate('meta.redId', 'nombre').populate('solicitante', 'nombre apellido fotoPerfil email').sort({ createdAt: -1 })
-    return res.status(200).json({ solicitudes })
-  } catch (error) {
-    console.error(error)
-    return res.status(500).json({ msg: 'Error en el servidor' })
-  }
-}
-
-const listarSolicitudesRehabilitar = async (req, res) => {
-  try {
-    const solicitudes = await SolicitudUnificada.find({ subtype: 'rehabilitar_red' }).populate('meta.redId', 'nombre deshabilitada').populate('solicitante', 'nombre apellido fotoPerfil email').sort({ createdAt: -1 })
-    return res.status(200).json({ solicitudes })
-  } catch (error) {
-    console.error(error)
-    return res.status(500).json({ msg: 'Error en el servidor' })
-  }
-}
-
-const listarSolicitudesHabilitarUsuarios = async (req, res) => {
-  try {
-    const solicitudes = await SolicitudUnificada.find({ subtype: 'habilitar_usuario' }).populate('solicitante', 'nombre apellido fotoPerfil email suspendido').sort({ createdAt: -1 })
-    return res.status(200).json({ solicitudes })
   } catch (error) {
     console.error(error)
     return res.status(500).json({ msg: 'Error en el servidor' })
@@ -965,41 +914,34 @@ const resolverSolicitudPostularAdminRed = async (req, res) => {
   }
 }
 
-const obtenerSolicitudesPostularAdminRed = async (req, res) => {
-  try {
-    const { estado } = req.query
-    // estado es opcional, si no se envía trae todas
+const listarSolicitudes = async (req, res) => {
+  const { subtype } = req.params
+  const { estado } = req.query
 
-    const filtro = { subtype: 'postular_admin_red' }
-    if (estado) filtro.estado = estado
-
-    const solicitudes = await SolicitudUnificada.find(filtro)
-      .populate('meta.redId', 'nombre deshabilitada fotoPerfil cantidadMiembros')
-      .populate('solicitante', 'nombre apellido fotoPerfil email username')
-      .sort({ createdAt: -1 })
-
-    return res.status(200).json({ solicitudes })
-
-  } catch (error) {
-    console.error(error)
-    return res.status(500).json({ msg: 'Error en el servidor' })
+  const populateMap = {
+    verificacion: {
+      meta: { path: 'meta.redId', select: 'nombre' }
+    },
+    rehabilitar_red: {
+      meta: { path: 'meta.redId', select: 'nombre deshabilitada' }
+    },
+    habilitar_usuario: {
+      solicitante: 'nombre apellido fotoPerfil email suspendido'
+    },
+    postular_admin_red: {
+      meta: { path: 'meta.redId', select: 'nombre deshabilitada fotoPerfil cantidadMiembros' },
+      solicitante: 'nombre apellido fotoPerfil email username'
+    },
+    revocar_admin_red: {
+      meta: { path: 'meta.redId', select: 'nombre deshabilitada fotoPerfil cantidadMiembros' },
+      solicitante: 'nombre apellido fotoPerfil email username'
+    }
   }
-}
 
-const obtenerSolicitudesRevocarAdminRed = async (req, res) => {
   try {
-    const { estado } = req.query
-
-    const filtro = { subtype: 'revocar_admin_red' }
-    if (estado) filtro.estado = estado
-
-    const solicitudes = await SolicitudUnificada.find(filtro)
-      .populate('meta.redId', 'nombre deshabilitada fotoPerfil cantidadMiembros')
-      .populate('solicitante', 'nombre apellido fotoPerfil email username')
-      .sort({ createdAt: -1 })
-
+    const q = listarSolicitudesPorSubtype(subtype, populateMap[subtype], estado)
+    const solicitudes = await q.exec()
     return res.status(200).json({ solicitudes })
-
   } catch (error) {
     console.error(error)
     return res.status(500).json({ msg: 'Error en el servidor' })
@@ -1011,22 +953,17 @@ export {
   crearReporteRed,
   crearReporteApp,
   crearReporteUsuario,
-  listarReportesUsuarios,
-  listarReportesRedes,
-  listarReportesApp,
+  listarReportes,
   resolverReporteUsuario,
   resolverReporteRed,
   resolverReporteApp,
   resolverReportePublicacionAdmin,
   listarReportesAdminRed,
   crearSolicitudVerificacion,
-  listarSolicitudesVerificacion,
   resolverSolicitudVerificacion,
   crearSolicitudRehabilitar,
-  listarSolicitudesRehabilitar,
   resolverSolicitudRehabilitar,
   crearSolicitudHabilitarUsuario,
-  listarSolicitudesHabilitarUsuarios,
   resolverSolicitudHabilitarUsuario,
   deleteReporteUsuario,
   deleteReporteRed,
@@ -1042,6 +979,5 @@ export {
   resolverSolicitudRevocarAdminRed,
   crearSolicitudPostularAdminRed,
   resolverSolicitudPostularAdminRed,
-  obtenerSolicitudesPostularAdminRed,
-  obtenerSolicitudesRevocarAdminRed
+  listarSolicitudes
 }

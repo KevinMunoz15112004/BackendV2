@@ -1,5 +1,13 @@
-import { body } from 'express-validator'
+import { body, param, query } from 'express-validator'
 import { mongoIdBody } from './mongoValidators.js'
+import Publicacion from '../models/Publicaciones.js'
+import RedComunitaria from '../models/RedComunitaria.js'
+
+const ESTADOS_VALIDOS = ['pendiente', 'resuelto', 'rechazado']
+const SUBTYPES_VALIDOS = ['publicacion', 'usuario', 'red', 'app']
+
+const SOLICITUD_SUBTYPES_VALIDOS = ['verificacion', 'rehabilitar_red', 'habilitar_usuario', 'postular_admin_red', 'revocar_admin_red']
+const SOLICITUD_ESTADOS_VALIDOS = ['pendiente', 'aprobada', 'rechazada']
 
 const PUBLICACION_TIPOS = [
   'Contenido Inapropiado',
@@ -22,6 +30,16 @@ const USUARIO_TIPOS = [
   'Otro'
 ]
 
+const listarReportesValidator = [
+  param('subtype').isIn(SUBTYPES_VALIDOS).withMessage('Tipo de reporte inválido'),
+  query('estado').optional().isIn(ESTADOS_VALIDOS).withMessage('Estado inválido')
+]
+
+const listarSolicitudesValidator = [
+  param('subtype').isIn(SOLICITUD_SUBTYPES_VALIDOS).withMessage('Tipo de solicitud inválido'),
+  query('estado').optional().isIn(SOLICITUD_ESTADOS_VALIDOS).withMessage('Estado inválido')
+]
+
 // Reporte sobre una publicación dentro de una red comunitaria
 const reportPublicacionValidator = [
   mongoIdBody('publicacionId'),
@@ -39,6 +57,26 @@ const reportAppValidator = [
 // Reporte de usuario (va al superadmin)
 const reportUsuarioValidator = [
   mongoIdBody('reportadoUsuarioId'),
+
+  body('publicacionId')
+    .optional()
+    .isMongoId().withMessage('publicacionId no es un ObjectId válido')
+    .bail()
+    .custom(async (value) => {
+      const publicacion = await Publicacion.findById(value)
+      if (!publicacion) throw new Error('La publicación no existe')
+      return true
+    }),
+
+  body('redId')
+    .optional()
+    .isMongoId().withMessage('redId no es un ObjectId válido')
+    .bail()
+    .custom(async (value) => {
+      const red = await RedComunitaria.findById(value)
+      if (!red) throw new Error('La red no existe')
+      return true
+    }),
   body('tipo').exists().withMessage('El tipo es obligatorio').bail().isString().withMessage('Tipo inválido').bail().isIn(USUARIO_TIPOS).withMessage('Tipo no permitido'),
   body('descripcion').if(body('tipo').equals('Otro')).exists().withMessage('Descripcion obligatoria para "Otro"').bail().isString().withMessage('La descripcion debe ser texto').bail().trim().notEmpty().withMessage('La descripcion no puede estar vacía')
 ]
@@ -58,4 +96,4 @@ const rehabilitarUsuarioValidator = [
   })
 ]
 
-export { reportPublicacionValidator, reportAppValidator, reportUsuarioValidator, rehabilitarUsuarioValidator }
+export { reportPublicacionValidator, reportAppValidator, reportUsuarioValidator, rehabilitarUsuarioValidator, listarReportesValidator, listarSolicitudesValidator }
