@@ -16,7 +16,7 @@ const redComunitariaSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Estudiante'
   }],
-  creadaPor: {
+  administrador: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Estudiante',
     default: null

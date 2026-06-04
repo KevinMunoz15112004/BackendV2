@@ -367,7 +367,7 @@ const crearSolicitudVerificacion = async (req, res) => {
     if (!red) return res.status(404).json({ msg: 'Red no encontrada' })
 
     const adminRelation = await AdminRed.findOne({ usuarioId: solicitanteId, redId: redId, estado: 'activo' })
-    const esCreador = red.creadaPor && red.creadaPor.equals(solicitanteId)
+    const esCreador = red.administrador && red.administrador.equals(solicitanteId)
     if (!adminRelation && !esCreador) return res.status(403).json({ msg: 'Solo el admin asignado de la red puede solicitar verificación/oficialización' })
 
     if (!solicitarVerificada && !solicitarOficial) return res.status(400).json({ msg: 'Debes solicitar al menos "verificada" o "oficial"' })
@@ -396,7 +396,7 @@ const crearSolicitudRehabilitar = async (req, res) => {
     const red = await RedComunitaria.findById(redId)
     if (!red) return res.status(404).json({ msg: 'Red no encontrada' })
     const adminRelation = await AdminRed.findOne({ usuarioId: solicitanteId, redId: redId, estado: 'activo' })
-    const esCreador = red.creadaPor && red.creadaPor.equals(solicitanteId)
+    const esCreador = red.administrador && red.administrador.equals(solicitanteId)
     if (!adminRelation && !esCreador) return res.status(403).json({ msg: 'Solo el admin asignado de la red puede solicitar rehabilitación' })
     if (!red.deshabilitada) return res.status(400).json({ msg: 'La red no está deshabilitada' })
     const existePendiente = await SolicitudUnificada.findOne({ subtype: 'rehabilitar_red', 'meta.redId': redId, solicitante: solicitanteId, estado: 'pendiente' })
@@ -620,7 +620,7 @@ const crearSolicitudRevocarAdminRed = async (req, res) => {
 
     // Verificar que sea el admin activo de esa red
     const adminRelation = await AdminRed.findOne({ usuarioId: solicitanteId, redId, estado: 'activo' })
-    const esCreador = red.creadaPor && red.creadaPor.equals(solicitanteId)
+    const esCreador = red.administrador && red.administrador.equals(solicitanteId)
     if (!adminRelation && !esCreador) return res.status(403).json({ msg: 'Solo el admin activo de la red puede solicitar revocar su rol' })
 
     // Verificar que no haya solicitud pendiente previa
@@ -693,10 +693,10 @@ const resolverSolicitudRevocarAdminRed = async (req, res) => {
       await user.save()
     }
 
-    // Si era el creador de la red, limpiar creadaPor
-    const wasCreator = red.creadaPor && red.creadaPor.toString() === user._id.toString()
+    // Si era el creador de la red, limpiar administrador
+    const wasCreator = red.administrador && red.administrador.toString() === user._id.toString()
     if (wasCreator) {
-      red.creadaPor = null
+      red.administrador = null
       await red.save()
     }
 
@@ -750,7 +750,7 @@ const crearSolicitudPostularAdminRed = async (req, res) => {
     if (!red) return res.status(404).json({ msg: 'Red no encontrada' })
 
     // Solo aplica si la red no tiene admin
-    if (red.creadaPor) return res.status(400).json({ msg: 'La red ya tiene un administrador asignado' })
+    if (red.administrador) return res.status(400).json({ msg: 'La red ya tiene un administrador asignado' })
 
     // La red debe estar activa
     if (red.deshabilitada) return res.status(400).json({ msg: 'No puedes postularte en una red deshabilitada' })
@@ -802,7 +802,7 @@ const resolverSolicitudPostularAdminRed = async (req, res) => {
     if (!red) return res.status(404).json({ msg: 'Red no encontrada' })
 
     // Verificar que la red siga sin admin al momento de resolver
-    if (red.creadaPor) return res.status(400).json({ msg: 'La red ya tiene un administrador asignado' })
+    if (red.administrador) return res.status(400).json({ msg: 'La red ya tiene un administrador asignado' })
 
     const user = await Estudiante.findById(solicitud.solicitante)
     if (!user) return res.status(404).json({ msg: 'Usuario no encontrado' })
@@ -852,7 +852,7 @@ const resolverSolicitudPostularAdminRed = async (req, res) => {
     }
 
     // Asignar como nuevo admin de la red
-    red.creadaPor = user._id
+    red.administrador = user._id
     if (!red.miembros.some(mid => mid.toString() === user._id.toString())) {
       red.miembros.push(user._id)
       red.cantidadMiembros = red.miembros.length

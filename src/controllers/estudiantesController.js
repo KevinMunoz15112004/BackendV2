@@ -543,7 +543,7 @@ const salirseDeRedComunitaria = async (req, res) => {
 
     // Verificar si el estudiante es admin de la red
     const adminActivo = await AdminRed.findOne({ usuarioId: estudianteId, redId: red._id, estado: 'activo' })
-    if (adminActivo || (red.creadaPor && red.creadaPor.equals(estudianteId))) {
+    if (adminActivo || (red.administrador && red.administrador.equals(estudianteId))) {
       return res.status(400).json({ msg: 'Eres administrador de esta red. Ponte en contacto con el Super Administrador para que revoque tu rol de admin de red antes de salir.' })
     }
 
@@ -1068,7 +1068,7 @@ const obtenerPerfilRed = async (req, res) => {
     const { redId } = req.params
     const { page = 1, limit = 12 } = req.query
 
-    const red = await RedComunitaria.findById(redId).select('nombre descripcion cantidadMiembros fotoPerfil esOficial esVerificada creadaPor')
+    const red = await RedComunitaria.findById(redId).select('nombre descripcion cantidadMiembros fotoPerfil esOficial esVerificada administrador')
     if (!red) return res.status(404).json({ msg: 'Red comunitaria no encontrada' })
 
     const pageNumber = Math.max(parseInt(page, 10) || 1, 1)
@@ -1094,7 +1094,7 @@ const obtenerPerfilRed = async (req, res) => {
         fotoPerfil: red.fotoPerfil,
         esOficial: red.esOficial,
         esVerificada: red.esVerificada,
-        creadaPor: red.creadaPor,
+        administrador: red.administrador,
         publicacionesCount: total
       },
       page: pageNumber,

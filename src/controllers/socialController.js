@@ -27,18 +27,18 @@ const solicitarCreacionRed = async (req, res) => {
     if (existe) return res.status(409).json({ msg: 'Ya existe una red con ese nombre' })
 
     // No permitir crear otra solicitud si ya tiene una pendiente
-    const pending = await RedComunitaria.findOne({ creadaPor: estudianteId, estadoAprobacion: 'pendiente' })
+    const pending = await RedComunitaria.findOne({ administrador: estudianteId, estadoAprobacion: 'pendiente' })
     if (pending) return res.status(400).json({ msg: 'Ya tienes una solicitud de red pendiente' })
 
     // No permitir crear otra red si ya tiene una red aprobada creada por este estudiante
-    const owned = await RedComunitaria.findOne({ creadaPor: estudianteId, estadoAprobacion: 'aprobada' })
+    const owned = await RedComunitaria.findOne({ administrador: estudianteId, estadoAprobacion: 'aprobada' })
     if (owned) return res.status(400).json({ msg: 'Ya posees una red comunitaria aprobada. Solo se permite una red por cuenta' })
 
     const nuevaRed = await RedComunitaria.create({
       nombre: nombre.trim(),
       descripcion: descripcion.trim(),
       fotoPerfil: fotoPerfil || null,
-      creadaPor: estudianteId,
+      administrador: estudianteId,
       estadoAprobacion: 'pendiente'
     })
 
@@ -574,7 +574,7 @@ const marcarNotificacionLeida = async (req, res) => {
 const listarRedesPendientesAprobacion = async (req, res) => {
   try {
     const redes = await RedComunitaria.find({ estadoAprobacion: 'pendiente' })
-      .populate('creadaPor', 'nombre apellido email')
+      .populate('administrador', 'nombre apellido email')
       .sort({ createdAt: -1 })
 
     return res.status(200).json({ redes })
@@ -600,8 +600,8 @@ const resolverAprobacionRed = async (req, res) => {
         return res.status(400).json({ msg: 'La red no está en estado pendiente' })
       }
 
-      // Encontrar al usuario creador (creadaPor)
-      const userId = red.creadaPor
+      // Encontrar al usuario creador (administrador)
+      const userId = red.administrador
       if (!userId) return res.status(400).json({ msg: 'La red no tiene asociado un creador' })
 
       const user = await Estudiante.findById(userId)
@@ -681,7 +681,7 @@ const resolverAprobacionRed = async (req, res) => {
 
     if (accion === 'rechazar') {
       // Al rechazar, eliminamos la red y notificamos al creador
-      const creadoPorId = red.creadaPor
+      const creadoPorId = red.administrador
       // Limpiar referencias en estudiantes que tenían esta red antes de eliminarla
       await Estudiante.updateMany(
         { redComunitaria: red._id },

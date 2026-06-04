@@ -402,7 +402,7 @@ const eliminarEstudiante = async (req, res) => {
 
   try {
     // Verificar si el estudiante es admin de alguna red comunitaria
-    const redComoCreador = await RedComunitaria.findOne({ creadaPor: id })
+    const redComoCreador = await RedComunitaria.findOne({ administrador: id })
     const adminActivo = await AdminRed.findOne({ usuarioId: id, estado: 'activo' })
 
     if (redComoCreador || adminActivo) {
