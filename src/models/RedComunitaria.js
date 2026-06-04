@@ -21,18 +21,14 @@ const redComunitariaSchema = new mongoose.Schema({
     ref: 'Estudiante',
     default: null
   },
-  // Indica si la red es global (se asigna automáticamente a nuevos usuarios y
-  // solo se muestra en la pestaña Explorar)
   esGlobal: {
     type: Boolean,
     default: false
   },
-  // Marca la red como verificada por SuperAdmin (azul)
   esVerificada: {
     type: Boolean,
     default: false
   },
-  // Si la red ha sido deshabilitada por un SuperAdmin
   deshabilitada: {
     type: Boolean,
     default: false
@@ -41,9 +37,6 @@ const redComunitariaSchema = new mongoose.Schema({
     type: String,
     default: null
   },
-  // Referencia al AdminRed que gestiona la red (cuenta web)
-  // ownerAdmin se mantiene por compatibilidad (referencia antigua a AdminRed)
-  // Nota: `creadaPor` es el único campo que indica quién creó/la administra la red.
   estadoAprobacion: {
     type: String,
     enum: ['pendiente', 'aprobada', 'rechazada'],

@@ -817,7 +817,7 @@ const resolverSolicitudPostularAdminRed = async (req, res) => {
       return res.status(200).json({ msg: 'Postulación rechazada', solicitud: pop })
     }
 
-    // Aprobar: misma lógica de asignarDuenoRed
+    // Aprobar
 
     // Añadir rol admin_red si no lo tiene
     if (!Array.isArray(user.roles)) user.roles = []

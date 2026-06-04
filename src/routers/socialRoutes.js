@@ -18,8 +18,6 @@ import {
   marcarNotificacionLeida,
   listarRedesPendientesAprobacion,
   resolverAprobacionRed,
-  revocarAdminRed,
-  asignarDuenoRed,
   listarLikesPublicacion,
 } from '../controllers/socialController.js'
 import { requirePerfilCompleto } from '../middlewares/checkPerfilCompleto.js'
@@ -59,7 +57,5 @@ router.post('/reportes/usuario', verifyToken, validators.reportUsuarioValidator,
 // Superadmin
 router.get('/superadmin/redes/pendientes', autenticarToken, isSuperAdmin, listarRedesPendientesAprobacion)
 router.patch('/superadmin/redes/:redId/aprobacion', autenticarToken, isSuperAdmin, validators.mongoIdParam('redId'), validateResult, resolverAprobacionRed)
-router.patch('/superadmin/redes/:redId/revocar-admin', autenticarToken, isSuperAdmin, validators.mongoIdParam('redId'), validators.mongoIdBody('usuarioId'), validateResult, revocarAdminRed)
-router.patch('/superadmin/redes/:redId/asignar-dueno', autenticarToken, isSuperAdmin, validators.mongoIdParam('redId'), validators.mongoIdBody('usuarioId'), validateResult, asignarDuenoRed)
 
 export default router

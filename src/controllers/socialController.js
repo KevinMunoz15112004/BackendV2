@@ -682,7 +682,6 @@ const resolverAprobacionRed = async (req, res) => {
     if (accion === 'rechazar') {
       // Al rechazar, eliminamos la red y notificamos al creador
       const creadoPorId = red.creadaPor
-      // `remove()` puede no estar disponible en algunas versiones de Mongoose;
       // Limpiar referencias en estudiantes que tenían esta red antes de eliminarla
       await Estudiante.updateMany(
         { redComunitaria: red._id },
@@ -750,168 +749,6 @@ const resolverAprobacionRed = async (req, res) => {
   }
 }
 
-// SuperAdmin: revocar rol de admin de red a un estudiante para una red
-const revocarAdminRed = async (req, res) => {
-  try {
-    const { redId } = req.params
-    const { usuarioId, motivo = null } = req.body
-
-    // `redId` y `usuarioId` validados por validators en rutas
-
-    const red = await RedComunitaria.findById(redId)
-    if (!red) return res.status(404).json({ msg: 'Red no encontrada' })
-
-    const user = await Estudiante.findById(usuarioId)
-    if (!user) return res.status(404).json({ msg: 'Usuario no encontrado' })
-
-    // Buscar relación y marcarla como revocada
-    const rel = await AdminRed.findOne({ usuarioId: user._id, redId: red._id })
-    if (rel) {
-      rel.estado = 'revocado'
-      await rel.save()
-    }
-
-    // Quitar rol admin_red del usuario (si estaba)
-    if (Array.isArray(user.roles) && user.roles.includes('admin_red')) {
-      user.roles = user.roles.filter(r => r !== 'admin_red')
-      await user.save()
-    }
-
-    // Si la red tenía creadaPor apuntando a este admin, quitarla
-    const wasCreator = red.creadaPor && red.creadaPor.toString() === user._id.toString()
-    if (wasCreator) {
-      red.creadaPor = null
-      await red.save()
-    }
-
-    // Crear notificación interna
-    const emisorIdVal = req.user?._id || null;
-    if (!emisorIdVal || user._id.toString() !== emisorIdVal.toString()) {
-      const notificacion = await crearNotificacion({
-        usuarioId: user._id,
-        emisorId: emisorIdVal,
-        tipo: 'mensaje',
-        mensaje: motivo || `Se te ha revocado el rol de admin de la red ${red.nombre}`
-      });
-
-      let emisorData = null;
-      if (emisorIdVal) {
-        emisorData = await Estudiante.findById(emisorIdVal).select('nombre apellido username fotoPerfil').lean();
-      }
-
-      await triggerUserChannel(user._id.toString(), 'nueva_notificacion', {
-        _id: notificacion._id.toString(),
-        tipo: notificacion.tipo,
-        emisorSnap: emisorData,
-        mensaje: notificacion.mensaje,
-        leida: false,
-        createdAt: notificacion.createdAt,
-        updatedAt: notificacion.updatedAt
-      });
-    }
-
-    return res.status(200).json({ msg: 'Rol revocado correctamente', red })
-  } catch (error) {
-    console.error('Error al revocar admin de red:', error)
-    return res.status(500).json({ msg: 'Error en el servidor' })
-  }
-}
-
-// SuperAdmin: asignar un estudiante como dueño/admin de una red sin dueño
-const asignarDuenoRed = async (req, res) => {
-  try {
-    const { redId } = req.params
-    const { usuarioId } = req.body
-
-    // `redId` y `usuarioId` validados por validators en rutas
-
-    const red = await RedComunitaria.findById(redId)
-    if (!red) return res.status(404).json({ msg: 'Red no encontrada' })
-
-    if (red.creadaPor) return res.status(400).json({ msg: 'La red ya tiene un administrador asignado' })
-
-    const user = await Estudiante.findById(usuarioId)
-    if (!user) return res.status(404).json({ msg: 'Usuario no encontrado' })
-
-    // Añadir rol admin_red si no lo tiene
-    if (!Array.isArray(user.roles)) user.roles = []
-    if (!user.roles.includes('admin_red')) {
-      user.roles.push('admin_red')
-      await user.save()
-    }
-
-    // Añadir red a user.redComunitaria si no está
-    if (!Array.isArray(user.redComunitaria)) user.redComunitaria = []
-    if (!user.redComunitaria.some(rid => rid.toString() === red._id.toString())) {
-      user.redComunitaria.push(red._id)
-      await user.save()
-    }
-
-    // Crear relation en adminRedes si no existe
-    const existeRel = await AdminRed.findOne({ usuarioId: user._id, redId: red._id })
-    if (!existeRel) {
-      await AdminRed.create({
-        usuarioId: user._id,
-        redId: red._id,
-        estado: 'activo',
-        permisos: ['gestion_publicaciones', 'gestionar_miembros'],
-        fechaAprobacion: new Date()
-      })
-    } else {
-      // si existe pero estaba revocado, marcar activo
-      if (existeRel.estado !== 'activo') {
-        existeRel.estado = 'activo'
-        existeRel.fechaAprobacion = new Date()
-        await existeRel.save()
-      }
-    }
-
-    // Asignar como administrador (creadaPor)
-    red.creadaPor = user._id
-    if (!Array.isArray(red.miembros)) red.miembros = []
-    if (!red.miembros.some(mid => mid.toString() === user._id.toString())) red.miembros.push(user._id)
-    red.cantidadMiembros = red.miembros.length
-    await red.save()
-
-    // Notificar y opcionalmente enviar correo
-    const emisorIdVal = req.user?._id || null;
-    if (!emisorIdVal || user._id.toString() !== emisorIdVal.toString()) {
-      const notificacion = await crearNotificacion({
-        usuarioId: user._id,
-        emisorId: emisorIdVal,
-        tipo: 'mensaje',
-        mensaje: `Has sido asignado como administrador de la red ${red.nombre}`
-      });
-
-      let emisorData = null;
-      if (emisorIdVal) {
-        emisorData = await Estudiante.findById(emisorIdVal).select('nombre apellido username fotoPerfil').lean();
-      }
-
-      await triggerUserChannel(user._id.toString(), 'nueva_notificacion', {
-        _id: notificacion._id.toString(),
-        tipo: notificacion.tipo,
-        emisorSnap: emisorData,
-        mensaje: notificacion.mensaje,
-        leida: false,
-        createdAt: notificacion.createdAt,
-        updatedAt: notificacion.updatedAt
-      });
-    }
-
-    try {
-      if (user.email) await sendMailRedAprobada(user.email, red.nombre)
-    } catch (e) {
-      console.error('Error enviando correo al nuevo dueño:', e)
-    }
-
-    return res.status(200).json({ msg: 'Dueño asignado correctamente', red })
-  } catch (error) {
-    console.error('Error al asignar dueño de red:', error)
-    return res.status(500).json({ msg: 'Error en el servidor' })
-  }
-}
-
 const listarLikesPublicacion = async (req, res) => {
   try {
     const { id } = req.params
@@ -945,7 +782,5 @@ export {
   marcarNotificacionLeida,
   listarRedesPendientesAprobacion,
   resolverAprobacionRed,
-  revocarAdminRed,
-  asignarDuenoRed,
   listarLikesPublicacion
 }
