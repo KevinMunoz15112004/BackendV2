@@ -44,7 +44,7 @@ const generarPlantillaHTML = (titulo, contenido) => `
     <div class="container">
         <div class="header">
             <!-- IMPORTANTE: Reemplaza esta URL con la ruta pública donde alojes tu logo -->
-            <img src="${process.env.LOGO_URL || 'https://tu-dominio.com/assets/logo-polired.png'}" alt="Logo PoliRed">
+            <img src="${'https://res.cloudinary.com/ddnp4mz8r/image/upload/v1780534050/logo_v5.2_sin_fondo_eckpqi.png'}" alt="Logo PoliRed">
         </div>
         <div class="content">
             <h1>${titulo}</h1>
