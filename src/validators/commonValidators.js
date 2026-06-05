@@ -53,5 +53,7 @@ const numberField = (field = 'number', { optional = false, min, max, integer = f
   return base.isFloat({ ...(min !== undefined ? { min } : {}), ...(max !== undefined ? { max } : {}) }).withMessage(`${field} debe ser un número válido${min !== undefined ? ' >= '+min : ''}${max !== undefined ? ' <= '+max : ''}`)
 }
 
+
+
 export { trimAndNotEmpty, normalizeEmail, passwordField, booleanBody, numberField }
 

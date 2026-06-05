@@ -46,5 +46,8 @@ validators.publicarArticuloValidator = content.publicarArticuloValidator
 
 // red
 validators.actualizarRedComunitariaValidator = red.actualizarRedComunitariaValidator
+validators.solicitarVerificacionRedValidator = red.solicitarVerificacionRedValidator
+validators.resolverVerificacionRedValidator = red.resolverVerificacionRedValidator
+validators.solicitarOficializacionRedValidator = red.solicitarOficializacionRedValidator
 
 export default validators

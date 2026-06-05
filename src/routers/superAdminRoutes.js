@@ -3,8 +3,7 @@ import { comprobarTokenPassword, crearNuevoPassword, recuperarPassword, login, p
 from '../controllers/SuperAdminController.js'
 import validators from '../validators/index.js'
 import validateResult from '../validators/validateResult.js'
-import { listarReportes, resolverReporteUsuario, resolverReporteRed, resolverReporteApp, resolverSolicitudVerificacion, resolverSolicitudRehabilitar, deleteReporteUsuario, deleteReporteRed, deleteReporteApp } from '../controllers/reportesSolicitudesController.js'
-import { deleteSolicitudRehabilitar, deleteSolicitudHabilitarUsuario, deleteSolicitudVerificacion } from '../controllers/reportesSolicitudesController.js'
+import { listarReportes, resolverReporteUsuario, resolverReporteRed, resolverReporteApp, resolverSolicitudVerificacion, resolverSolicitudOficializacion, resolverSolicitudRehabilitar, deleteReporteUsuario, deleteReporteRed, deleteReporteApp, deleteSolicitudRehabilitar, deleteSolicitudHabilitarUsuario, deleteSolicitudVerificacion } from '../controllers/reportesSolicitudesController.js'
 import { autenticarToken, isSuperAdmin } from '../middlewares/authSuperAdmin.js'
 import { listarSolicitudes ,resolverSolicitudHabilitarUsuario, resolverSolicitudPostularAdminRed, resolverSolicitudRevocarAdminRed } from '../controllers/reportesSolicitudesController.js'
 
@@ -50,7 +49,8 @@ router.delete('/redes/solicitudes/:id', autenticarToken, isSuperAdmin, validator
 router.get('/solicitudes/:subtype', autenticarToken, isSuperAdmin, validators.listarSolicitudesValidator, validateResult, listarSolicitudes)
 
 // Solicitudes de verificación/oficialización de redes
-router.patch('/redes/solicitudes/:id/resolver', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validateResult, resolverSolicitudVerificacion)
+router.patch('/redes/solicitudes/:id/resolver-verificacion', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validators.resolverVerificacionRedValidator, validateResult, resolverSolicitudVerificacion)
+router.patch('/redes/solicitudes/:id/resolver-oficializacion', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validators.resolverVerificacionRedValidator, validateResult, resolverSolicitudOficializacion)
 
 // Solicitudes de habilitar usuarios (creadas por estudiantes suspendidos)
 router.patch('/superadmin/solicitudes/habilitar-usuarios/:id/resolver', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validateResult, resolverSolicitudHabilitarUsuario)

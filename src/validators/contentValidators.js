@@ -25,8 +25,6 @@ const crearPublicacionValidator = [
   body('tipoContenido')
     .exists().withMessage('tipoContenido es obligatorio').bail()
     .isIn(['texto', 'imagen']).withMessage('tipoContenido inválido. Valores permitidos: texto, imagen'),
-  // Conditional checks depending on tipoContenido
-  // Cross-field validation: feedContext determines allowed categories and required comunidadId
   body()
     .custom((_, { req }) => {
       const feedContext = req.body.feedContext ? String(req.body.feedContext).trim().toLowerCase() : ''

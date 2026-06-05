@@ -12,6 +12,11 @@ const redComunitariaSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  proposito: {
+    type: String,
+    required: true,
+    trim: true
+  },
   miembros: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Estudiante'

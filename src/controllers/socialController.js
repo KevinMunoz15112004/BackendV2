@@ -11,16 +11,12 @@ import { _resolvePostDoc } from '../helpers/postResolver.js'
 import { triggerUserChannel } from '../config/pusher.js'
 import { sendMailRedAprobada, sendMailRedRechazada } from '../config/nodemailer.js'
 
-// Helper `_resolvePostDoc` moved to `src/helpers/postResolver.js`
-
 // Controladores para funcionalidades sociales
 
 const solicitarCreacionRed = async (req, res) => {
   try {
-    const { nombre, descripcion, fotoPerfil } = req.body
+    const { nombre, descripcion, proposito, fotoPerfil } = req.body
     const estudianteId = req.user?._id
-
-    // Formato/presencia de `nombre` y `descripcion` validados por validators en rutas
 
     // Evitar duplicados por nombre
     const existe = await RedComunitaria.findOne({ nombre: nombre.trim() })
@@ -37,6 +33,7 @@ const solicitarCreacionRed = async (req, res) => {
     const nuevaRed = await RedComunitaria.create({
       nombre: nombre.trim(),
       descripcion: descripcion.trim(),
+      proposito: proposito.trim(),
       fotoPerfil: fotoPerfil || null,
       administrador: estudianteId,
       estadoAprobacion: 'pendiente'
@@ -54,8 +51,6 @@ const darLikePublicacion = async (req, res) => {
   try {
     const { id } = req.params
     const estudianteId = req.user?._id
-
-    // ID validado por validators en rutas
 
     const resolved = await _resolvePostDoc(id)
     if (!resolved) {
@@ -168,8 +163,6 @@ const quitarLikePublicacion = async (req, res) => {
     const { id } = req.params
     const estudianteId = req.user?._id
 
-    // ID validado por validators en rutas
-
     const resolved = await _resolvePostDoc(id)
     if (!resolved) {
       return res.status(404).json({ msg: 'Publicación no encontrada' })
@@ -202,9 +195,6 @@ const crearComentarioPublicacion = async (req, res) => {
     const { id } = req.params
     const { contenido } = req.body
     const estudianteId = req.user?._id
-
-    // ID validado por validators en rutas
-    // `contenido` validado por validators en rutas
 
     const resolved = await _resolvePostDoc(id)
     if (!resolved) {
@@ -267,9 +257,6 @@ const responderComentario = async (req, res) => {
     const { comentarioId } = req.params
     const { contenido } = req.body
     const estudianteId = req.user?._id
-
-    // ID validado por validators en rutas
-    // `contenido` validado por validators en rutas
 
     const comentarioPadre = await Comentario.findById(comentarioId)
     if (!comentarioPadre) {
@@ -342,8 +329,6 @@ const listarComentariosArbol = async (req, res) => {
   try {
     const { id } = req.params
 
-    // ID validado por validators en rutas
-
     const comentarios = await Comentario.find({ postId: id })
       .populate('userId', 'nombre apellido email username fotoPerfil')
       .sort({ createdAt: 1 })
@@ -378,8 +363,6 @@ const guardarPublicacion = async (req, res) => {
     const { id } = req.params
     const estudianteId = req.user?._id
 
-    // ID validado por validators en rutas
-
     // Verificar que el documento existe (Publicacion o Articulo)
     const resolved = await _resolvePostDoc(id)
     const estudiante = await Estudiante.findById(estudianteId)
@@ -405,8 +388,6 @@ const quitarGuardadoPublicacion = async (req, res) => {
   try {
     const { id } = req.params
     const estudianteId = req.user?._id
-
-    // ID validado por validators en rutas
 
     const estudiante = await Estudiante.findById(estudianteId)
     if (!estudiante) {
@@ -559,7 +540,6 @@ const listarNotificaciones = async (req, res) => {
 const marcarNotificacionLeida = async (req, res) => {
   try {
     const { id } = req.params
-    // ID validado por validators en rutas
     const notif = await Notificacion.findById(id)
     if (!notif) return res.status(404).json({ msg: 'Notificación no encontrada' })
     notif.leida = true
@@ -588,8 +568,6 @@ const resolverAprobacionRed = async (req, res) => {
   try {
     const { redId } = req.params
     const { accion } = req.body
-
-    // `redId` validado por validators en rutas
 
     const red = await RedComunitaria.findById(redId)
     if (!red) return res.status(404).json({ msg: 'Red no encontrada' })

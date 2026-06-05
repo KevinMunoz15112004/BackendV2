@@ -26,4 +26,54 @@ const actualizarRedComunitariaValidator = [
     })
 ]
 
-export { actualizarRedComunitariaValidator }
+// Para crear solicitud de verificación
+const solicitarVerificacionRedValidator = [
+  body('nombreRed').trim().notEmpty().withMessage('El nombre de la red es obligatorio'),
+  body('fechaCreacionRed')
+    .notEmpty().withMessage('La fecha de creación es obligatoria')
+    .isISO8601().withMessage('La fecha debe tener formato válido'),
+  body('cantidadMiembros')
+    .notEmpty().withMessage('La cantidad de miembros es obligatoria')
+    .isInt({ min: 0 }).withMessage('La cantidad de miembros debe ser un número entero positivo'),
+]
+
+// Para crear solicitud de oficialización
+const solicitarOficializacionRedValidator = [
+  body('nombreRed').trim().notEmpty().withMessage('El nombre de la red es obligatorio'),
+  body('fechaCreacionRed')
+    .notEmpty().withMessage('La fecha de creación es obligatoria')
+    .isISO8601().withMessage('La fecha debe tener formato válido'),
+  body('cantidadMiembros')
+    .notEmpty().withMessage('La cantidad de miembros es obligatoria')
+    .isInt({ min: 0 }).withMessage('La cantidad de miembros debe ser un número entero positivo'),
+  body('dependencia')
+    .notEmpty().withMessage('La dependencia es obligatoria')
+    .isIn(['Rectorado', 'Vicerrectorado', 'Facultad', 'Carrera', 'Departamento', 'Bienestar Universitario', 'Otro'])
+    .withMessage('Dependencia no válida'),
+  body('dependenciaPersonalizada')
+    .if((value, { req }) => req.body.dependencia === 'Otro')
+    .trim().notEmpty().withMessage('Debes describir la dependencia cuando seleccionas "Otro"'),
+  body('cargo')
+    .notEmpty().withMessage('El cargo es obligatorio')
+    .isIn(['Director', 'Coordinador', 'Docente responsable', 'Administrativo', 'Representante autorizado', 'Otro'])
+    .withMessage('Cargo no válido'),
+  body('cargoPersonalizado')
+    .if((value, { req }) => req.body.cargo === 'Otro')
+    .trim().notEmpty().withMessage('Debes describir el cargo cuando seleccionas "Otro"'),
+  // body('correoInstitucional')
+  //   .notEmpty().withMessage('El correo institucional es obligatorio')
+  //   .matches(/^[^\s@]+@epn\.edu\.ec$/i).withMessage('El correo debe ser institucional (@epn.edu.ec)'),
+  body('justificacion')
+    .trim().notEmpty().withMessage('La justificación es obligatoria')
+    .isLength({ max: 2000 }).withMessage('La justificación no puede superar los 2000 caracteres'),
+]
+
+// Para resolver cualquiera de las dos solicitudes
+const resolverVerificacionRedValidator = [
+  body('estado')
+    .notEmpty().withMessage('El estado es obligatorio')
+    .isIn(['Aprobada', 'Rechazada']).withMessage('Estado inválido. Solo "Aprobada" o "Rechazada"'),
+  body('respuesta').optional().isString().withMessage('La respuesta debe ser texto'),
+]
+
+export { actualizarRedComunitariaValidator, resolverVerificacionRedValidator, solicitarOficializacionRedValidator, solicitarVerificacionRedValidator }

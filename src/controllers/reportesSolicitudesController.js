@@ -80,7 +80,7 @@ const crearReporteApp = async (req, res) => {
 const crearReporteUsuario = async (req, res) => {
   try {
     const { tipo, descripcion, reportadoUsuarioId, publicacionId, redId, archivos = [] } = req.body
-    
+
     const usuario = await Estudiante.findById(reportadoUsuarioId)
     if (!usuario) return res.status(404).json({ msg: 'Usuario reportado no encontrado' })
 
@@ -90,7 +90,7 @@ const crearReporteUsuario = async (req, res) => {
       descripcion: descripcion ? descripcion.trim() : '',
       reporterId: req.estudianteBDD ? req.estudianteBDD._id : (req.user?._id || null),
       archivos,
-      meta: { 
+      meta: {
         reportadoUsuarioId,
         publicacionId: publicacionId || null,
         redId: redId || null
@@ -136,12 +136,12 @@ const resolverReporteUsuario = async (req, res) => {
     const { id } = req.params
     const { estado, respuesta } = req.body
     const mapped = mapEstadoFromBody(estado)
-    if (!mapped || !['resuelto','rechazado'].includes(mapped)) return res.status(400).json({ msg: 'Estado inválido. Solo se acepta "Resuelta" o "Rechazada"' })
+    if (!mapped || !['resuelto', 'rechazado'].includes(mapped)) return res.status(400).json({ msg: 'Estado inválido. Solo se acepta "Resuelta" o "Rechazada"' })
 
     const reporte = await ReporteUnificado.findById(id)
     if (!reporte || reporte.subtype !== 'usuario') return res.status(404).json({ msg: 'Reporte de usuario no encontrado' })
 
-    if (['resuelto','rechazado'].includes(reporte.estado)) return res.status(400).json({ msg: 'El reporte ya fue resuelto o rechazado' })
+    if (['resuelto', 'rechazado'].includes(reporte.estado)) return res.status(400).json({ msg: 'El reporte ya fue resuelto o rechazado' })
 
     if (mapped === 'rechazado') {
       reporte.estado = 'rechazado'
@@ -176,12 +176,12 @@ const resolverReporteRed = async (req, res) => {
     const { id } = req.params
     const { estado, respuesta } = req.body
     const mapped = mapEstadoFromBody(estado)
-    if (!mapped || !['resuelto','rechazado'].includes(mapped)) return res.status(400).json({ msg: 'Estado inválido. Solo se acepta "Resuelta" o "Rechazada"' })
+    if (!mapped || !['resuelto', 'rechazado'].includes(mapped)) return res.status(400).json({ msg: 'Estado inválido. Solo se acepta "Resuelta" o "Rechazada"' })
 
     const reporte = await ReporteUnificado.findById(id)
     if (!reporte || reporte.subtype !== 'red') return res.status(404).json({ msg: 'Reporte de red no encontrado' })
 
-    if (['resuelto','rechazado'].includes(reporte.estado)) return res.status(400).json({ msg: 'El reporte ya fue resuelto o rechazado' })
+    if (['resuelto', 'rechazado'].includes(reporte.estado)) return res.status(400).json({ msg: 'El reporte ya fue resuelto o rechazado' })
 
     if (mapped === 'rechazado') {
       reporte.estado = 'rechazado'
@@ -219,12 +219,12 @@ const resolverReporteApp = async (req, res) => {
     const { id } = req.params
     const { estado, respuesta } = req.body
     const mapped = mapEstadoFromBody(estado)
-    if (!mapped || !['resuelto','rechazado'].includes(mapped)) return res.status(400).json({ msg: 'Estado inválido. Solo se acepta "Resuelta" o "Rechazada"' })
+    if (!mapped || !['resuelto', 'rechazado'].includes(mapped)) return res.status(400).json({ msg: 'Estado inválido. Solo se acepta "Resuelta" o "Rechazada"' })
 
     const reporte = await ReporteUnificado.findById(id)
     if (!reporte || reporte.subtype !== 'app') return res.status(404).json({ msg: 'Reporte de app no encontrado' })
 
-    if (['resuelto','rechazado'].includes(reporte.estado)) return res.status(400).json({ msg: 'El reporte ya fue resuelto' })
+    if (['resuelto', 'rechazado'].includes(reporte.estado)) return res.status(400).json({ msg: 'El reporte ya fue resuelto' })
 
     if (mapped === 'rechazado') {
       reporte.estado = 'rechazado'
@@ -252,7 +252,7 @@ const resolverReportePublicacionAdmin = async (req, res) => {
     const { id } = req.params
     const { estado, respuesta } = req.body
     const mapped = mapEstadoFromBody(estado)
-    if (!mapped || !['resuelto','rechazado'].includes(mapped)) return res.status(400).json({ msg: 'Estado inválido. Solo se acepta "Resuelta" o "Rechazada"' })
+    if (!mapped || !['resuelto', 'rechazado'].includes(mapped)) return res.status(400).json({ msg: 'Estado inválido. Solo se acepta "Resuelta" o "Rechazada"' })
 
     const reporte = await ReporteUnificado.findById(id)
     if (!reporte || reporte.subtype !== 'publicacion') return res.status(404).json({ msg: 'Reporte de publicación no encontrado' })
@@ -320,9 +320,9 @@ const listarReportesAdminRed = async (req, res) => {
     const admin = req.user
     if (!admin.redAsignada) return res.status(400).json({ msg: 'No tienes red asignada' })
 
-    const reportes = await ReporteUnificado.find({ 
-      subtype: 'publicacion', 
-      'meta.redId': admin.redAsignada 
+    const reportes = await ReporteUnificado.find({
+      subtype: 'publicacion',
+      'meta.redId': admin.redAsignada
     })
       .populate('meta.publicacionId', 'titulo contenido tipoContenido mediaUrls')
       .populate('reporterId', 'nombre apellido fotoPerfil email')
@@ -359,28 +359,122 @@ const deleteReportePublicacionAdmin = async (req, res) => deleteReportePorId(req
 const crearSolicitudVerificacion = async (req, res) => {
   try {
     const solicitanteId = req.user?._id
-    const { redId, descripcion, solicitarVerificada = false, solicitarOficial = false } = req.body
-
-    // Presence/format validation for `redId` and `descripcion` is handled by route validators.
+    const { redId, nombreRed, fechaCreacionRed, cantidadMiembros } = req.body
 
     const red = await RedComunitaria.findById(redId)
     if (!red) return res.status(404).json({ msg: 'Red no encontrada' })
 
-    const adminRelation = await AdminRed.findOne({ usuarioId: solicitanteId, redId: redId, estado: 'activo' })
-    const esCreador = red.administrador && red.administrador.equals(solicitanteId)
-    if (!adminRelation && !esCreador) return res.status(403).json({ msg: 'Solo el admin asignado de la red puede solicitar verificación/oficialización' })
+    const adminRelation = await AdminRed.findOne({ usuarioId: solicitanteId, redId, estado: 'activo' })
+    const esCreador = red.administrador?.equals(solicitanteId)
+    if (!adminRelation && !esCreador)
+      return res.status(403).json({ msg: 'Solo el admin asignado de la red puede solicitar verificación' })
 
-    if (!solicitarVerificada && !solicitarOficial) return res.status(400).json({ msg: 'Debes solicitar al menos "verificada" o "oficial"' })
+    const solicitudPendiente = await SolicitudUnificada.findOne({ 'meta.redId': redId, subtype: 'verificacion', estado: 'pendiente' })
+    if (solicitudPendiente) return res.status(400).json({ msg: 'Ya existe una solicitud de verificación pendiente para esta red' })
+
+    if (red.esVerificada) return res.status(400).json({ msg: 'La red ya es verificada' })
+
+    if (nombreRed?.trim() !== red.nombre)
+      return res.status(400).json({ msg: 'El nombre de la red no coincide con el registrado' })
+
+    const fechaEnviada = new Date(fechaCreacionRed)
+    const fechaReal = new Date(red.createdAt)
+    if (isNaN(fechaEnviada) || fechaEnviada.toISOString().split('T')[0] !== fechaReal.toISOString().split('T')[0])
+      return res.status(400).json({ msg: 'La fecha de creación no coincide con la registrada' })
+
+    if (Number(cantidadMiembros) !== red.cantidadMiembros)
+      return res.status(400).json({ msg: 'La cantidad de miembros no coincide con la registrada' })
+
+    const diasDeVida = Math.floor((Date.now() - red.createdAt) / (1000 * 60 * 60 * 24))
+    if (diasDeVida < 30)
+      return res.status(400).json({ msg: `La red debe tener al menos 30 días de antigüedad (actualmente tiene ${diasDeVida} días)` })
+
+    if (red.cantidadMiembros < 30)
+      return res.status(400).json({ msg: `La red debe tener al menos 30 miembros (actualmente tiene ${red.cantidadMiembros})` })
 
     const nueva = await SolicitudUnificada.create({
       subtype: 'verificacion',
       solicitante: solicitanteId,
-      descripcion: descripcion.trim(),
-      meta: { redId, solicitarVerificada: Boolean(solicitarVerificada), solicitarOficial: Boolean(solicitarOficial) }
+      descripcion: '',
+      meta: {
+        redId,
+        solicitarVerificada: true,
+        solicitarOficial: false,
+        nombreRed: red.nombre,
+        fechaCreacionRed: red.createdAt,
+        cantidadMiembros: red.cantidadMiembros
+      }
     })
 
-    const pop = await SolicitudUnificada.findById(nueva._id).populate('meta.redId', 'nombre').populate('solicitante', 'nombre apellido fotoPerfil email')
-    return res.status(201).json({ msg: 'Solicitud creada', solicitud: pop })
+    const pop = await SolicitudUnificada.findById(nueva._id)
+      .populate('meta.redId', 'nombre')
+      .populate('solicitante', 'nombre apellido fotoPerfil email')
+
+    return res.status(201).json({ msg: 'Solicitud de verificación creada', solicitud: pop })
+  } catch (error) {
+    console.error(error)
+    return res.status(500).json({ msg: 'Error en el servidor' })
+  }
+}
+
+const crearSolicitudOficializacion = async (req, res) => {
+  try {
+    const solicitanteId = req.user?._id
+    const { redId, nombreRed, fechaCreacionRed, cantidadMiembros, dependencia, dependenciaPersonalizada, cargo, cargoPersonalizado, correoInstitucional, justificacion } = req.body
+
+    const red = await RedComunitaria.findById(redId)
+    if (!red) return res.status(404).json({ msg: 'Red no encontrada' })
+
+    const adminRelation = await AdminRed.findOne({ usuarioId: solicitanteId, redId, estado: 'activo' })
+    const esCreador = red.administrador?.equals(solicitanteId)
+    if (!adminRelation && !esCreador)
+      return res.status(403).json({ msg: 'Solo el admin asignado de la red puede solicitar oficialización' })
+
+    const solicitudPendiente = await SolicitudUnificada.findOne({ 'meta.redId': redId, subtype: 'oficializacion', estado: 'pendiente' })
+    if (solicitudPendiente) return res.status(400).json({ msg: 'Ya existe una solicitud de oficialización pendiente para esta red' })
+
+    if (red.esOficial) return res.status(400).json({ msg: 'La red ya es oficial' })
+
+    if (nombreRed?.trim() !== red.nombre)
+      return res.status(400).json({ msg: 'El nombre de la red no coincide con el registrado' })
+
+    const fechaEnviada = new Date(fechaCreacionRed)
+    const fechaReal = new Date(red.createdAt)
+    if (isNaN(fechaEnviada) || fechaEnviada.toISOString().split('T')[0] !== fechaReal.toISOString().split('T')[0])
+      return res.status(400).json({ msg: 'La fecha de creación no coincide con la registrada' })
+
+    if (Number(cantidadMiembros) !== red.cantidadMiembros)
+      return res.status(400).json({ msg: 'La cantidad de miembros no coincide con la registrada' })
+
+    const estudiante = await Estudiante.findById(solicitanteId).select('email')
+    if (correoInstitucional.toLowerCase() !== estudiante.email.toLowerCase())
+      return res.status(400).json({ msg: 'El correo institucional debe ser el tuyo, no el de otra persona' })
+
+    const nueva = await SolicitudUnificada.create({
+      subtype: 'oficializacion',
+      solicitante: solicitanteId,
+      descripcion: '',
+      meta: {
+        redId,
+        solicitarVerificada: false,
+        solicitarOficial: true,
+        nombreRed: red.nombre,
+        fechaCreacionRed: red.createdAt,
+        cantidadMiembros: red.cantidadMiembros,
+        dependencia,
+        dependenciaPersonalizada: dependencia === 'Otro' ? dependenciaPersonalizada.trim() : null,
+        cargo,
+        cargoPersonalizado: cargo === 'Otro' ? cargoPersonalizado.trim() : null,
+        correoInstitucional: correoInstitucional.toLowerCase(),
+        justificacion: justificacion.trim()
+      }
+    })
+
+    const pop = await SolicitudUnificada.findById(nueva._id)
+      .populate('meta.redId', 'nombre')
+      .populate('solicitante', 'nombre apellido fotoPerfil email')
+
+    return res.status(201).json({ msg: 'Solicitud de oficialización creada', solicitud: pop })
   } catch (error) {
     console.error(error)
     return res.status(500).json({ msg: 'Error en el servidor' })
@@ -582,11 +676,15 @@ const resolverSolicitudHabilitarUsuario = async (req, res) => {
 const resolverSolicitudVerificacion = async (req, res) => {
   try {
     const { id } = req.params
-    const { estado, asignarVerificada = false, asignarOficial = false, respuesta } = req.body
-    if (!['Aprobada','Rechazada'].includes(estado)) return res.status(400).json({ msg: 'Estado inválido. Solo "Aprobada" o "Rechazada"' })
+    const { estado, respuesta } = req.body
+
     const solicitud = await SolicitudUnificada.findById(id)
-    if (!solicitud || solicitud.subtype !== 'verificacion') return res.status(404).json({ msg: 'Solicitud no encontrada' })
-    if (solicitud.estado === 'aprobada') return res.status(400).json({ msg: 'La solicitud ya fue aprobada' })
+    if (!solicitud || solicitud.subtype !== 'verificacion')
+      return res.status(404).json({ msg: 'Solicitud no encontrada' })
+
+    if (solicitud.estado === 'aprobada')
+      return res.status(400).json({ msg: 'La solicitud ya fue aprobada' })
+
     if (estado === 'Rechazada') {
       solicitud.estado = 'rechazada'
       if (respuesta) solicitud.respuesta = respuesta
@@ -594,15 +692,56 @@ const resolverSolicitudVerificacion = async (req, res) => {
       const pop = await SolicitudUnificada.findById(solicitud._id).populate('meta.redId', 'nombre').populate('solicitante', 'nombre apellido fotoPerfil email').select('-__v')
       return res.status(200).json({ msg: 'Solicitud rechazada', solicitud: pop })
     }
+
     const red = await RedComunitaria.findById(solicitud.meta.redId)
     if (!red) return res.status(404).json({ msg: 'Red no encontrada' })
-    if (Boolean(asignarVerificada)) red.esVerificada = true
-    if (Boolean(asignarOficial)) red.esOficial = true
+
+    red.esVerificada = true
     await red.save()
+
     solicitud.estado = 'aprobada'
     if (respuesta) solicitud.respuesta = respuesta
     await solicitud.save()
-    const pop = await SolicitudUnificada.findById(solicitud._id).populate('meta.redId', 'nombre esVerificada esOficial').populate('solicitante', 'nombre apellido fotoPerfil email').select('-__v')
+
+    const pop = await SolicitudUnificada.findById(solicitud._id).populate('meta.redId', 'nombre esVerificada').populate('solicitante', 'nombre apellido fotoPerfil email').select('-__v')
+    return res.status(200).json({ msg: 'Solicitud aprobada', solicitud: pop })
+  } catch (error) {
+    console.error(error)
+    return res.status(500).json({ msg: 'Error en el servidor' })
+  }
+}
+
+const resolverSolicitudOficializacion = async (req, res) => {
+  try {
+    const { id } = req.params
+    const { estado, respuesta } = req.body
+
+    const solicitud = await SolicitudUnificada.findById(id)
+    if (!solicitud || solicitud.subtype !== 'oficializacion')
+      return res.status(404).json({ msg: 'Solicitud no encontrada' })
+
+    if (solicitud.estado === 'aprobada')
+      return res.status(400).json({ msg: 'La solicitud ya fue aprobada' })
+
+    if (estado === 'Rechazada') {
+      solicitud.estado = 'rechazada'
+      if (respuesta) solicitud.respuesta = respuesta
+      await solicitud.save()
+      const pop = await SolicitudUnificada.findById(solicitud._id).populate('meta.redId', 'nombre').populate('solicitante', 'nombre apellido fotoPerfil email').select('-__v')
+      return res.status(200).json({ msg: 'Solicitud rechazada', solicitud: pop })
+    }
+
+    const red = await RedComunitaria.findById(solicitud.meta.redId)
+    if (!red) return res.status(404).json({ msg: 'Red no encontrada' })
+
+    red.esOficial = true
+    await red.save()
+
+    solicitud.estado = 'aprobada'
+    if (respuesta) solicitud.respuesta = respuesta
+    await solicitud.save()
+
+    const pop = await SolicitudUnificada.findById(solicitud._id).populate('meta.redId', 'nombre esOficial').populate('solicitante', 'nombre apellido fotoPerfil email').select('-__v')
     return res.status(200).json({ msg: 'Solicitud aprobada', solicitud: pop })
   } catch (error) {
     console.error(error)
@@ -979,5 +1118,7 @@ export {
   resolverSolicitudRevocarAdminRed,
   crearSolicitudPostularAdminRed,
   resolverSolicitudPostularAdminRed,
-  listarSolicitudes
+  listarSolicitudes,
+  resolverSolicitudOficializacion,
+  crearSolicitudOficializacion
 }
