@@ -1,5 +1,5 @@
 import {Router} from 'express'
-import { comprobarTokenPassword, crearNuevoPassword, recuperarPassword, login, perfil, actualizarPerfil, actualizarAvatar, actualizarPassword, obtenerEstudiantes, obtenerEstudiantePorId, actualizarEstudiante, eliminarEstudiante, suspenderEstudiante, habilitarEstudiante, obtenerRedes, obtenerRedPorId, actualizarRed, eliminarRed, marcarRedVerificada } 
+import { comprobarTokenPassword, crearNuevoPassword, recuperarPassword, login, perfil, actualizarPerfil, actualizarAvatar, actualizarPassword, obtenerEstudiantes, obtenerEstudiantePorId, actualizarEstudiante, obtenerRedes, obtenerRedPorId, actualizarRed, eliminarRed, marcarRedVerificada } 
 from '../controllers/SuperAdminController.js'
 import validators from '../validators/index.js'
 import validateResult from '../validators/validateResult.js'
@@ -24,9 +24,6 @@ router.patch('/superadmin/actualizar-password/', autenticarToken, isSuperAdmin, 
 router.get('/estudiantes', autenticarToken, isSuperAdmin, obtenerEstudiantes)
 router.get('/estudiantes/:id', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validateResult, obtenerEstudiantePorId)
 router.patch('/actualizar-estudiantes/:id', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validateResult, actualizarEstudiante)
-router.delete('/eliminar-estudiantes/:id', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validateResult, eliminarEstudiante)
-router.patch('/estudiantes/:id/suspender', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validateResult, suspenderEstudiante)
-router.patch('/estudiantes/:id/habilitar', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validateResult, habilitarEstudiante)
 
 //Rutas para la gestión de redes comunitarias
 router.get('/redes', autenticarToken, isSuperAdmin, obtenerRedes)

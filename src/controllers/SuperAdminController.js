@@ -395,64 +395,6 @@ const actualizarEstudiante = async (req, res) => {
   }
 };
 
-
-const eliminarEstudiante = async (req, res) => {
-  const id = req.params.id
-  // ID validado por validators en rutas
-
-  try {
-    // Verificar si el estudiante es admin de alguna red comunitaria
-    const redComoCreador = await RedComunitaria.findOne({ administrador: id })
-    const adminActivo = await AdminRed.findOne({ usuarioId: id, estado: 'activo' })
-
-    if (redComoCreador || adminActivo) {
-      return res.status(400).json({ msg: 'El estudiante es administrador de una red comunitaria. Debe revocarle el cargo de admin de red antes de eliminarlo.' })
-    }
-
-    const estudianteEliminado = await Estudiante.findByIdAndDelete(id)
-
-    if (!estudianteEliminado) {
-      return res.status(404).json({ msg: 'Estudiante no encontrado' })
-    }
-
-    res.json({ msg: 'Estudiante eliminado correctamente' })
-  } catch (error) {
-    res.status(500).json({ error: error.message })
-  }
-}
-
-const suspenderEstudiante = async (req, res) => {
-  try {
-    const { id } = req.params
-    const estudiante = await Estudiante.findById(id)
-    if (!estudiante) return res.status(404).json({ msg: 'Estudiante no encontrado' })
-
-    estudiante.suspendido = true
-    await estudiante.save()
-
-    res.status(200).json({ msg: 'Estudiante suspendido correctamente' })
-  } catch (error) {
-    console.error(error)
-    res.status(500).json({ msg: 'Error en el servidor' })
-  }
-}
-
-const habilitarEstudiante = async (req, res) => {
-  try {
-    const { id } = req.params
-    const estudiante = await Estudiante.findById(id)
-    if (!estudiante) return res.status(404).json({ msg: 'Estudiante no encontrado' })
-
-    estudiante.suspendido = false
-    await estudiante.save()
-
-    res.status(200).json({ msg: 'Estudiante habilitado correctamente' })
-  } catch (error) {
-    console.error(error)
-    res.status(500).json({ msg: 'Error en el servidor' })
-  }
-}
-
 //Controladores para la gestión de redes comunitarias
 const obtenerRedes = async (req, res) => {
   const redes = await RedComunitaria.find().populate('miembros', 'nombre apellido email')
@@ -528,46 +470,51 @@ const actualizarRed = async (req, res) => {
 
 const eliminarRed = async (req, res) => {
   const id = req.params.id
-  // ID validado por validators en rutas
-
   try {
     const red = await RedComunitaria.findById(id)
     if (!red) return res.status(404).json({ msg: 'Red no encontrada' })
 
-    // Verificar si existe un admin activo en adminRedes para esta red
+    // Condición 1: no debe tener admin activo
     const adminActivo = await AdminRed.findOne({ redId: red._id, estado: 'activo' })
-    if (adminActivo) {
-      return res.status(400).json({ msg: 'La red tiene un administrador activo. Debe revocar el admin antes de eliminar la red.' })
+    if (adminActivo) return res.status(400).json({ msg: 'La red tiene un administrador activo' })
+
+    // Condición 2: no debe tener miembros
+    if (red.miembros.length > 0) return res.status(400).json({ 
+      msg: `La red aún tiene ${red.miembros.length} miembro(s). No puede eliminarse.` 
+    })
+
+    // Condición 3: debe estar inactiva el tiempo suficiente
+    // Por ahora usas deshabilitada + sin actividad reciente (timestamps)
+    if (!red.deshabilitada) return res.status(400).json({ 
+      msg: 'La red debe estar deshabilitada antes de poder eliminarse' 
+    })
+
+    const diasDesdeActualizacion = (Date.now() - new Date(red.updatedAt)) / (1000 * 60 * 60 * 24)
+    if (diasDesdeActualizacion < 90) return res.status(400).json({ 
+      msg: `La red debe permanecer inactiva al menos 90 días. Lleva ${Math.floor(diasDesdeActualizacion)} días.` 
+    })
+
+    const publicaciones = await Publicacion.find({ comunidadId: id }).select('_id').lean()
+    const postIds = (publicaciones || []).map(p => p._id).filter(Boolean)
+
+    if (postIds.length > 0) {
+      await Comentario.deleteMany({ postId: { $in: postIds } })
+      await Estudiante.updateMany(
+        { publicacionesGuardadas: { $in: postIds } },
+        { $pull: { publicacionesGuardadas: { $in: postIds } } }
+      )
+      await Publicacion.deleteMany({ _id: { $in: postIds } })
     }
 
-    // Remover referencia de la red de los estudiantes que estaban suscritos
     await Estudiante.updateMany(
       { redComunitaria: id },
       { $pull: { redComunitaria: id } }
     )
 
-    // Buscar publicaciones pertenecientes a la red y limpiarlas
-    const publicaciones = await Publicacion.find({ comunidadId: id }).select('_id').lean()
-    const postIds = (publicaciones || []).map(p => p._id).filter(Boolean)
-
-    if (postIds.length > 0) {
-      // Eliminar comentarios de esas publicaciones
-      await Comentario.deleteMany({ postId: { $in: postIds } })
-
-      // Remover referencias a esas publicaciones en los guardados de estudiantes
-      await Estudiante.updateMany(
-        { publicacionesGuardadas: { $in: postIds } },
-        { $pull: { publicacionesGuardadas: { $in: postIds } } }
-      )
-
-      // Eliminar las publicaciones
-      await Publicacion.deleteMany({ _id: { $in: postIds } })
-    }
-
     await RedComunitaria.findByIdAndDelete(id)
-    res.json({ mensaje: 'Red eliminada correctamente' })
+    res.json({ msg: 'Red eliminada correctamente' })
   } catch (error) {
-    res.status(500).json({ mensaje: error.message })
+    res.status(500).json({ msg: error.message })
   }
 }
 
@@ -603,9 +550,6 @@ export {
   obtenerEstudiantes,
   obtenerEstudiantePorId,
   actualizarEstudiante,
-  eliminarEstudiante,
-  suspenderEstudiante,
-  habilitarEstudiante,
   obtenerRedes,
   obtenerRedPorId,
   actualizarRed,
