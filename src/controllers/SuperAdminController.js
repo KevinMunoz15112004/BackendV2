@@ -215,11 +215,6 @@ const perfil = (req, res) => {
   res.status(200).json(req.user)
 }
 
-// Gestión estudiantes
-// Gestión estudiantes: la creación de estudiantes por parte del SuperAdmin
-// fue retirada por requerimiento. Las demás operaciones sobre estudiantes
-// (listar, actualizar, eliminar, etc.) permanecen.
-
 const obtenerEstudiantes = async (req, res) => {
   try {
     const estudiantes = await Estudiante.find()

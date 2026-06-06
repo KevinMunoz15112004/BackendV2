@@ -359,7 +359,7 @@ const deleteReportePublicacionAdmin = async (req, res) => deleteReportePorId(req
 const crearSolicitudVerificacion = async (req, res) => {
   try {
     const solicitanteId = req.user?._id
-    const { redId, nombreRed, fechaCreacionRed, cantidadMiembros } = req.body
+    const { redId, nombreRed, fechaCreacionRed, cantidadMiembros, correoInstitucional } = req.body
 
     const red = await RedComunitaria.findById(redId)
     if (!red) return res.status(404).json({ msg: 'Red no encontrada' })
@@ -392,6 +392,10 @@ const crearSolicitudVerificacion = async (req, res) => {
     if (red.cantidadMiembros < 30)
       return res.status(400).json({ msg: `La red debe tener al menos 30 miembros (actualmente tiene ${red.cantidadMiembros})` })
 
+    const estudiante = await Estudiante.findById(solicitanteId).select('email')
+    if (!correoInstitucional || correoInstitucional.toLowerCase() !== estudiante.email.toLowerCase())
+      return res.status(400).json({ msg: 'El correo institucional debe ser el tuyo, no el de otra persona' })
+
     const nueva = await SolicitudUnificada.create({
       subtype: 'verificacion',
       solicitante: solicitanteId,
@@ -402,7 +406,8 @@ const crearSolicitudVerificacion = async (req, res) => {
         solicitarOficial: false,
         nombreRed: red.nombre,
         fechaCreacionRed: red.createdAt,
-        cantidadMiembros: red.cantidadMiembros
+        cantidadMiembros: red.cantidadMiembros,
+        correoInstitucional: correoInstitucional.toLowerCase()
       }
     })
 
@@ -446,8 +451,15 @@ const crearSolicitudOficializacion = async (req, res) => {
     if (Number(cantidadMiembros) !== red.cantidadMiembros)
       return res.status(400).json({ msg: 'La cantidad de miembros no coincide con la registrada' })
 
+    const diasDeVida = Math.floor((Date.now() - red.createdAt) / (1000 * 60 * 60 * 24))
+    if (diasDeVida < 30)
+      return res.status(400).json({ msg: `La red debe tener al menos 30 días de antigüedad (actualmente tiene ${diasDeVida} días)` })
+
+    if (red.cantidadMiembros < 30)
+      return res.status(400).json({ msg: `La red debe tener al menos 30 miembros (actualmente tiene ${red.cantidadMiembros})` })
+
     const estudiante = await Estudiante.findById(solicitanteId).select('email')
-    if (correoInstitucional.toLowerCase() !== estudiante.email.toLowerCase())
+    if (!correoInstitucional || correoInstitucional.toLowerCase() !== estudiante.email.toLowerCase())
       return res.status(400).json({ msg: 'El correo institucional debe ser el tuyo, no el de otra persona' })
 
     const nueva = await SolicitudUnificada.create({

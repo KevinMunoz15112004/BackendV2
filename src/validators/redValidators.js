@@ -14,13 +14,20 @@ const actualizarRedComunitariaValidator = [
     .bail()
     .trim()
     .notEmpty().withMessage('La descripción no puede estar vacía'),
+  body('proposito')
+    .optional()
+    .isString().withMessage('El propósito debe ser texto')
+    .bail()
+    .trim()
+    .notEmpty().withMessage('El propósito no puede estar vacío'),
   body()
     .custom((_, { req }) => {
       const hasNombre = req.body && req.body.nombre && String(req.body.nombre).trim() !== ''
       const hasDescripcion = req.body && req.body.descripcion && String(req.body.descripcion).trim() !== ''
+      const hasProposito = req.body && req.body.proposito && String(req.body.proposito).trim() !== ''
       const hasFile = req.files && req.files.imagen
-      if (!hasNombre && !hasDescripcion && !hasFile) {
-        throw new Error('Debe proporcionar al menos un campo válido para actualizar (descripción o imagen).')
+      if (!hasNombre && !hasDescripcion && !hasProposito && !hasFile) {
+        throw new Error('Debe proporcionar al menos un campo válido para actualizar (nombre, descripción, propósito o imagen).')
       }
       return true
     })

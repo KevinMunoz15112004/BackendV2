@@ -1068,7 +1068,7 @@ const obtenerPerfilRed = async (req, res) => {
     const { redId } = req.params
     const { page = 1, limit = 12 } = req.query
 
-    const red = await RedComunitaria.findById(redId).select('nombre descripcion cantidadMiembros fotoPerfil esOficial esVerificada administrador')
+    const red = await RedComunitaria.findById(redId).select('nombre descripcion cantidadMiembros fotoPerfil esOficial esVerificada administrador createdAt')
     if (!red) return res.status(404).json({ msg: 'Red comunitaria no encontrada' })
 
     const pageNumber = Math.max(parseInt(page, 10) || 1, 1)
@@ -1095,6 +1095,7 @@ const obtenerPerfilRed = async (req, res) => {
         esOficial: red.esOficial,
         esVerificada: red.esVerificada,
         administrador: red.administrador,
+        createdAt: red.createdAt,
         publicacionesCount: total
       },
       page: pageNumber,
@@ -1110,8 +1111,6 @@ const obtenerPerfilRed = async (req, res) => {
 const obtenerPerfilPublicoInfo = async (req, res) => {
   try {
     const { usuarioId } = req.params;
-
-    // `usuarioId` validado por `validators.mongoIdParam('usuarioId')` en la ruta
 
     const estudiante = await Estudiante.findOne({ _id: usuarioId, status: true })
       .select('_id nombre apellido username fotoPerfil biografia redComunitaria')

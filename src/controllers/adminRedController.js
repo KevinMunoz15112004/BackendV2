@@ -377,11 +377,11 @@ const actualizarRedComunitaria = async (req, res) => {
       return res.status(403).json({ msg: 'Acceso no autorizado. Solo los administradores de red pueden realizar esta acción.' })
     }
 
-    // Determinar la red asignada a partir de relaciones admin (consistente con otros controladores)
     const relaciones = req.adminRelations || []
     const activa = relaciones.find(r => r.estado === 'activo')
     const redId = activa ? activa.redId : null
-    const { descripcion } = req.body
+
+    const { descripcion, nombre, proposito } = req.body || {}
 
     if (!redId) {
       return res.status(400).json({ msg: 'No estás asignado a ninguna red comunitaria.' })
@@ -395,13 +395,8 @@ const actualizarRedComunitaria = async (req, res) => {
 
     let seActualizo = false
 
-    const { nombre } = req.body
-
-    // Permitir que el admin de red modifique el nombre de su propia red,
-    // pero validar unicidad (excluyendo la red actual)
     if (nombre?.trim()) {
       const nombreTrim = nombre.trim()
-      // Evitar colisiones por mayúsculas/minúsculas
       const existente = await RedComunitaria.findOne({ nombre: { $regex: `^${nombreTrim}$`, $options: 'i' }, _id: { $ne: red._id } })
       if (existente) return res.status(400).json({ msg: 'Ya existe una red comunitaria con ese nombre.' })
       red.nombre = nombreTrim
@@ -413,8 +408,12 @@ const actualizarRedComunitaria = async (req, res) => {
       seActualizo = true
     }
 
-    // Si se sube una imagen (archivo o URL), manejarla con profileService
-    if (req.files && req.files.imagen || req.body && req.body.fotoPerfil) {
+    if (proposito?.trim()) {
+      red.proposito = proposito.trim()
+      seActualizo = true
+    }
+
+    if ((req.files && req.files.imagen) || (req.body && req.body.fotoPerfil)) {
       try {
         const url = await profileService.handleProfileImage({ req, bodyField: 'fotoPerfil', filesField: 'imagen', folder: 'foto_red_comunitaria', publicIdPrefix: red._id, required: false })
         if (url) {
@@ -436,7 +435,6 @@ const actualizarRedComunitaria = async (req, res) => {
     if (error.code === 11000 && error.keyPattern?.nombre) {
       return res.status(400).json({ msg: 'Ya existe una red comunitaria con ese nombre.' })
     }
-
     console.error('Error al actualizar red comunitaria:', error)
     res.status(500).json({ msg: 'Error en el servidor' })
   }
