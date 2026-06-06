@@ -506,7 +506,7 @@ const listarRedesDelEstudiante = async (req, res) => {
     const estudianteId = req.user?._id
 
     const estudiante = await Estudiante.findById(estudianteId)
-      .populate({ path: 'redComunitaria', select: 'nombre descripcion fotoPerfil', ...(populateExcludeGlobalMatch()) })
+      .populate({ path: 'redComunitaria', select: 'nombre descripcion fotoPerfil esVerificada esOficial', ...(populateExcludeGlobalMatch()) })
 
     if (!estudiante) {
       return res.status(404).json({ msg: "Estudiante no encontrado" })
