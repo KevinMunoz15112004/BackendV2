@@ -10,7 +10,6 @@ const solicitudesSchema = new Schema({
     redId: { type: Schema.Types.ObjectId, ref: 'RedComunitaria', default: null },
     solicitarVerificada: { type: Boolean, default: false },
     solicitarOficial: { type: Boolean, default: false },
-    motivo: { type: String, default: null },
 
     // Campos para verificación
     nombreRed: { type: String, default: null },

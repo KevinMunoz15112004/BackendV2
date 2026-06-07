@@ -8,7 +8,7 @@ import AdminRed from '../models/adminRedes.js'
 import Comentario from '../models/Comentarios.js'
 import { crearNotificacion } from '../helpers/notificaciones.js'
 import { triggerUserChannel } from '../config/pusher.js'
-import { mapEstadoFromBody, listarReportesPorSubtype, listarSolicitudesPorSubtype } from '../helpers/reportHelpers.js'
+import { mapEstadoFromBody, listarReportesPorSubtype, listarSolicitudesPorSubtype, populateReporte, populateSolicitud, reportePopulateMap, reporteSelectMap, solicitudPopulateMap, solicitudSelectMap } from '../helpers/reportHelpers.js'
 import { isGlobalRed } from '../helpers/globalRed.js'
 
 // Create report: publication
@@ -26,7 +26,7 @@ const crearReportePublicacion = async (req, res) => {
       meta: { publicacionId: publicacion._id, redId: publicacion.comunidadId || null }
     })
 
-    const pop = await ReporteUnificado.findById(nuevo._id).populate('meta.publicacionId').populate('meta.redId', 'nombre')
+    const pop = await populateReporte(nuevo._id, 'publicacion')
     return res.status(201).json({ msg: 'Reporte creado', reporte: pop })
   } catch (error) {
     console.error(error)
@@ -52,9 +52,7 @@ const crearReporteArticulo = async (req, res) => {
       }
     })
 
-    const pop = await ReporteUnificado.findById(nuevo._id)
-      .populate('meta.articuloId')
-      .populate('meta.redId', 'nombre')
+    const pop = await populateReporte(nuevo._id, 'articulo')
 
     return res.status(201).json({ msg: 'Reporte creado', reporte: pop })
   } catch (error) {
@@ -78,7 +76,7 @@ const crearReporteRed = async (req, res) => {
       meta: { redId }
     })
 
-    const pop = await ReporteUnificado.findById(nuevo._id).populate('meta.redId', 'nombre').populate('reporterId', 'nombre apellido fotoPerfil email')
+    const pop = await populateReporte(nuevo._id, 'red')
     return res.status(201).json({ msg: 'Reporte creado', reporte: pop })
   } catch (error) {
     console.error(error)
@@ -96,7 +94,7 @@ const crearReporteApp = async (req, res) => {
       descripcion: descripcion ? descripcion.trim() : '',
       reporterId: req.estudianteBDD ? req.estudianteBDD._id : (req.user?._id || null)
     })
-    const pop = await ReporteUnificado.findById(nuevo._id).populate('reporterId', 'nombre apellido fotoPerfil email')
+    const pop = await populateReporte(nuevo._id, 'app')
     return res.status(201).json({ msg: 'Reporte creado', reporte: pop })
   } catch (error) {
     console.error(error)
@@ -124,11 +122,7 @@ const crearReporteUsuario = async (req, res) => {
       }
     })
 
-    const pop = await ReporteUnificado.findById(nuevo._id)
-      .populate('meta.reportadoUsuarioId', 'nombre apellido fotoPerfil email')
-      .populate('meta.publicacionId', 'titulo contenido tipoContenido categoria')
-      .populate('meta.redId', 'nombre fotoPerfil esVerificada')
-      .populate('reporterId', 'nombre apellido fotoPerfil email')
+    const pop = await populateReporte(nuevo._id, 'usuario')
     return res.status(201).json({ msg: 'Reporte creado', reporte: pop })
   } catch (error) {
     console.error(error)
@@ -140,15 +134,9 @@ const listarReportes = async (req, res) => {
   const { subtype } = req.params
   const { estado } = req.query
 
-  const populateMap = {
-    usuario: [{ path: 'meta.reportadoUsuarioId', select: 'nombre apellido fotoPerfil email' }],
-    red: ['meta.redId'],
-    app: [],
-    publicacion: [{ path: 'meta.publicacionId', select: 'contenido' }]
-  }
-
   try {
-    const q = listarReportesPorSubtype(subtype, populateMap[subtype], estado)
+    const q = listarReportesPorSubtype(subtype, reportePopulateMap[subtype], estado)
+    q.select(reporteSelectMap[subtype] || '-__v')
     const reportes = await q.exec()
     return res.status(200).json({ reportes })
   } catch (error) {
@@ -174,7 +162,7 @@ const resolverReporteUsuario = async (req, res) => {
       reporte.estado = 'rechazado'
       if (respuesta) reporte.respuesta = respuesta
       await reporte.save()
-      const reportePop = await ReporteUnificado.findById(reporte._id).populate('meta.reportadoUsuarioId', 'nombre apellido fotoPerfil email').populate('reporterId', 'nombre apellido fotoPerfil email')
+      const reportePop = await populateReporte(reporte._id, 'usuario')
       return res.status(200).json({ msg: 'Reporte rechazado', reporte: reportePop })
     }
 
@@ -185,12 +173,39 @@ const resolverReporteUsuario = async (req, res) => {
 
     const usuario = await Estudiante.findById(reporte.meta.reportadoUsuarioId)
     if (usuario) {
+      const eraAdminRed = usuario.roles.includes('admin_red')
       usuario.suspendido = true
+
+      if (eraAdminRed) {
+        usuario.roles = usuario.roles.filter(r => r !== 'admin_red')
+
+        await Promise.all([
+          AdminRed.findOneAndUpdate(
+            { usuarioId: usuario._id, estado: 'activo' },
+            { estado: 'revocado' }
+          ),
+          RedComunitaria.findOneAndUpdate(
+            { administrador: usuario._id },
+            { administrador: null }
+          )
+        ])
+      }
+
       await usuario.save()
+
+      const reportePop = await populateReporte(reporte._id, 'usuario')
+
+      const msg = eraAdminRed
+        ? 'Reporte resuelto. Usuario suspendido y rol de administrador revocado'
+        : 'Reporte resuelto. Usuario suspendido'
+
+      return res.status(200).json({ msg, reporte: reportePop })
     }
 
-    const reportePop = await ReporteUnificado.findById(reporte._id).populate('meta.reportadoUsuarioId', 'nombre apellido fotoPerfil email').populate('reporterId', 'nombre apellido fotoPerfil email')
-    return res.status(200).json({ msg: 'Reporte resuelto. Usuario suspendido', reporte: reportePop })
+    // Si por alguna razón el usuario no existe pero el reporte sí
+    const reportePop = await populateReporte(reporte._id, 'usuario')
+    return res.status(200).json({ msg: 'Reporte resuelto. Usuario no encontrado en el sistema', reporte: reportePop })
+
   } catch (error) {
     console.error(error)
     return res.status(500).json({ msg: 'Error en el servidor' })
@@ -214,7 +229,7 @@ const resolverReporteRed = async (req, res) => {
       reporte.estado = 'rechazado'
       if (respuesta) reporte.respuesta = respuesta
       await reporte.save()
-      const reportePop = await ReporteUnificado.findById(reporte._id).populate('meta.redId', 'nombre deshabilitada').populate('reporterId', 'nombre apellido fotoPerfil email')
+      const reportePop = await populateReporte(reporte._id, 'red')
       return res.status(200).json({ msg: 'Reporte rechazado', reporte: reportePop })
     }
 
@@ -225,14 +240,14 @@ const resolverReporteRed = async (req, res) => {
 
     const red = await RedComunitaria.findById(reporte.meta.redId)
     if (!red) {
-      const reportePop = await ReporteUnificado.findById(reporte._id).populate('meta.redId', 'nombre deshabilitada').populate('reporterId', 'nombre apellido fotoPerfil email')
+      const reportePop = await populateReporte(reporte._id, 'red')
       return res.status(200).json({ msg: 'Reporte resuelto. La red no existe', reporte: reportePop })
     }
 
     red.deshabilitada = true
     await red.save()
 
-    const reportePop = await ReporteUnificado.findById(reporte._id).populate('meta.redId', 'nombre deshabilitada').populate('reporterId', 'nombre apellido fotoPerfil email')
+    const reportePop = await populateReporte(reporte._id, 'red')
     return res.status(200).json({ msg: 'Reporte resuelto. Red deshabilitada', reporte: reportePop })
   } catch (error) {
     console.error(error)
@@ -251,13 +266,13 @@ const resolverReporteApp = async (req, res) => {
     const reporte = await ReporteUnificado.findById(id)
     if (!reporte || reporte.subtype !== 'app') return res.status(404).json({ msg: 'Reporte de app no encontrado' })
 
-    if (['resuelto', 'rechazado'].includes(reporte.estado)) return res.status(400).json({ msg: 'El reporte ya fue resuelto' })
+    if (['resuelto', 'rechazado'].includes(reporte.estado)) return res.status(400).json({ msg: 'El reporte ya fue resuelto o rechazado' })
 
     if (mapped === 'rechazado') {
       reporte.estado = 'rechazado'
       if (respuesta) reporte.respuesta = respuesta
       await reporte.save()
-      const reportePop = await ReporteUnificado.findById(reporte._id).populate('reporterId', 'nombre apellido fotoPerfil email')
+      const reportePop = await populateReporte(reporte._id, 'app')
       return res.status(200).json({ msg: 'Reporte rechazado', reporte: reportePop })
     }
 
@@ -265,7 +280,7 @@ const resolverReporteApp = async (req, res) => {
     if (respuesta) reporte.respuesta = respuesta
     await reporte.save()
 
-    const reportePop = await ReporteUnificado.findById(reporte._id).populate('reporterId', 'nombre apellido fotoPerfil email')
+    const reportePop = await populateReporte(reporte._id, 'app')
     return res.status(200).json({ msg: 'Reporte de app resuelto', reporte: reportePop })
   } catch (error) {
     console.error(error)
@@ -284,7 +299,7 @@ const resolverReportePublicacionAdmin = async (req, res) => {
     const reporte = await ReporteUnificado.findById(id)
     if (!reporte || reporte.subtype !== 'publicacion') return res.status(404).json({ msg: 'Reporte de publicación no encontrado' })
 
-    if (reporte.estado === 'resuelto') return res.status(400).json({ msg: 'El reporte ya fue resuelto' })
+    if (['resuelto', 'rechazado'].includes(reporte.estado))return res.status(400).json({ msg: 'El reporte ya fue resuelto o rechazado' })
 
     const admin = req.user
     if (!admin.redAsignada || !reporte.meta.redId || String(reporte.meta.redId) !== String(admin.redAsignada)) {
@@ -295,10 +310,7 @@ const resolverReportePublicacionAdmin = async (req, res) => {
       reporte.estado = 'rechazado'
       if (respuesta) reporte.respuesta = respuesta
       await reporte.save()
-      const reportePop = await ReporteUnificado.findById(reporte._id)
-        .populate('meta.publicacionId')
-        .populate('meta.redId', 'nombre')
-        .populate('reporterId', 'nombre apellido fotoPerfil email')
+      const reportePop = await populateReporte(reporte._id, 'publicacion')
       return res.status(200).json({ msg: 'Reporte rechazado', reporte: reportePop })
     }
 
@@ -309,10 +321,7 @@ const resolverReportePublicacionAdmin = async (req, res) => {
 
     const publicacion = await Publicacion.findById(reporte.meta.publicacionId)
     if (!publicacion) {
-      const reportePop = await ReporteUnificado.findById(reporte._id)
-        .populate('meta.publicacionId')
-        .populate('meta.redId', 'nombre')
-        .populate('reporterId', 'nombre apellido fotoPerfil email')
+      const reportePop = await populateReporte(reporte._id, 'publicacion')
       return res.status(200).json({ msg: 'Reporte resuelto. La publicación no existe (posible eliminación previa)', reporte: reportePop })
     }
 
@@ -330,10 +339,7 @@ const resolverReportePublicacionAdmin = async (req, res) => {
 
     await Publicacion.findByIdAndDelete(publicacion._id)
 
-    const reportePop = await ReporteUnificado.findById(reporte._id)
-      .populate('meta.publicacionId')
-      .populate('meta.redId', 'nombre')
-      .populate('reporterId', 'nombre apellido fotoPerfil email')
+    const reportePop = await populateReporte(reporte._id, 'publicacion')
     return res.status(200).json({ msg: 'Reporte resuelto y publicación eliminada', reporte: reportePop })
 
   } catch (error) {
@@ -480,9 +486,7 @@ const crearSolicitudVerificacion = async (req, res) => {
       }
     })
 
-    const pop = await SolicitudUnificada.findById(nueva._id)
-      .populate('meta.redId', 'nombre')
-      .populate('solicitante', 'nombre apellido fotoPerfil email')
+    const pop = await populateSolicitud(nueva._id, 'verificacion')
 
     return res.status(201).json({ msg: 'Solicitud de verificación creada', solicitud: pop })
   } catch (error) {
@@ -551,9 +555,7 @@ const crearSolicitudOficializacion = async (req, res) => {
       }
     })
 
-    const pop = await SolicitudUnificada.findById(nueva._id)
-      .populate('meta.redId', 'nombre')
-      .populate('solicitante', 'nombre apellido fotoPerfil email')
+    const pop = await populateSolicitud(nueva._id, 'oficializacion')
 
     return res.status(201).json({ msg: 'Solicitud de oficialización creada', solicitud: pop })
   } catch (error) {
@@ -576,7 +578,7 @@ const crearSolicitudRehabilitar = async (req, res) => {
     const existePendiente = await SolicitudUnificada.findOne({ subtype: 'rehabilitar_red', 'meta.redId': redId, solicitante: solicitanteId, estado: 'pendiente' })
     if (existePendiente) return res.status(400).json({ msg: 'Ya existe una solicitud pendiente para esta red' })
     const nueva = await SolicitudUnificada.create({ subtype: 'rehabilitar_red', solicitante: solicitanteId, descripcion: descripcion.trim(), meta: { redId } })
-    const pop = await SolicitudUnificada.findById(nueva._id).populate('meta.redId', 'nombre deshabilitada').populate('solicitante', 'nombre apellido fotoPerfil email')
+    const pop = await populateSolicitud(nueva._id, 'rehabilitar_red')
     return res.status(201).json({ msg: 'Solicitud creada', solicitud: pop })
   } catch (error) {
     console.error(error)
@@ -598,11 +600,11 @@ const crearSolicitudHabilitarUsuario = async (req, res) => {
     }
     if (!estudiante) return res.status(404).json({ msg: 'Usuario no encontrado' })
     if (!estudiante.suspendido) return res.status(400).json({ msg: 'El usuario no está suspendido' })
+    solicitanteId = solicitanteId || estudiante._id
     const existePendiente = await SolicitudUnificada.findOne({ subtype: 'habilitar_usuario', solicitante: solicitanteId, estado: 'pendiente' })
     if (existePendiente) return res.status(400).json({ msg: 'Ya existe una solicitud pendiente' })
-    solicitanteId = solicitanteId || estudiante._id
-    const nueva = await SolicitudUnificada.create({ subtype: 'habilitar_usuario', solicitante: solicitanteId, descripcion: motivo.trim(), meta: { motivo } })
-    const pop = await SolicitudUnificada.findById(nueva._id).populate('solicitante', 'nombre apellido fotoPerfil email')
+    const nueva = await SolicitudUnificada.create({ subtype: 'habilitar_usuario', solicitante: solicitanteId, descripcion: motivo.trim(), meta: {} })
+    const pop = await populateSolicitud(nueva._id, 'habilitar_usuario')
     return res.status(201).json({ msg: 'Solicitud creada', solicitud: pop })
   } catch (error) {
     console.error(error)
@@ -658,7 +660,7 @@ const resolverSolicitudRehabilitar = async (req, res) => {
       solicitud.estado = 'rechazada'
       if (respuesta) solicitud.respuesta = respuesta
       await solicitud.save()
-      const pop = await SolicitudUnificada.findById(solicitud._id).populate('meta.redId', 'nombre deshabilitada').populate('solicitante', 'nombre apellido fotoPerfil email')
+      const pop = await populateSolicitud(solicitud._id, 'rehabilitar_red')
       return res.status(200).json({ msg: 'Solicitud rechazada', solicitud: pop })
     }
     red.deshabilitada = false
@@ -666,7 +668,7 @@ const resolverSolicitudRehabilitar = async (req, res) => {
     solicitud.estado = 'aprobada'
     if (respuesta) solicitud.respuesta = respuesta
     await solicitud.save()
-    const pop = await SolicitudUnificada.findById(solicitud._id).populate('meta.redId', 'nombre deshabilitada').populate('solicitante', 'nombre apellido fotoPerfil email')
+    const pop = await populateSolicitud(solicitud._id, 'rehabilitar_red')
     return res.status(200).json({ msg: 'Solicitud aprobada. Red reactivada', solicitud: pop })
   } catch (error) {
     console.error(error)
@@ -715,14 +717,14 @@ const resolverSolicitudVerificacion = async (req, res) => {
     if (!solicitud || solicitud.subtype !== 'verificacion')
       return res.status(404).json({ msg: 'Solicitud no encontrada' })
 
-    if (solicitud.estado === 'aprobada')
-      return res.status(400).json({ msg: 'La solicitud ya fue aprobada' })
+    if (['aprobada', 'rechazada'].includes(solicitud.estado))
+      return res.status(400).json({ msg: 'La solicitud ya fue procesada' })
 
     if (estado === 'Rechazada') {
       solicitud.estado = 'rechazada'
       if (respuesta) solicitud.respuesta = respuesta
       await solicitud.save()
-      const pop = await SolicitudUnificada.findById(solicitud._id).populate('meta.redId', 'nombre').populate('solicitante', 'nombre apellido fotoPerfil email').select('-__v')
+      const pop = await populateSolicitud(solicitud._id, 'verificacion')
       return res.status(200).json({ msg: 'Solicitud rechazada', solicitud: pop })
     }
 
@@ -736,7 +738,7 @@ const resolverSolicitudVerificacion = async (req, res) => {
     if (respuesta) solicitud.respuesta = respuesta
     await solicitud.save()
 
-    const pop = await SolicitudUnificada.findById(solicitud._id).populate('meta.redId', 'nombre esVerificada').populate('solicitante', 'nombre apellido fotoPerfil email').select('-__v')
+    const pop = await populateSolicitud(solicitud._id, 'verificacion')
     return res.status(200).json({ msg: 'Solicitud aprobada', solicitud: pop })
   } catch (error) {
     console.error(error)
@@ -753,14 +755,14 @@ const resolverSolicitudOficializacion = async (req, res) => {
     if (!solicitud || solicitud.subtype !== 'oficializacion')
       return res.status(404).json({ msg: 'Solicitud no encontrada' })
 
-    if (solicitud.estado === 'aprobada')
-      return res.status(400).json({ msg: 'La solicitud ya fue aprobada' })
+    if (['aprobada', 'rechazada'].includes(solicitud.estado))
+      return res.status(400).json({ msg: 'La solicitud ya fue procesada' })
 
     if (estado === 'Rechazada') {
       solicitud.estado = 'rechazada'
       if (respuesta) solicitud.respuesta = respuesta
       await solicitud.save()
-      const pop = await SolicitudUnificada.findById(solicitud._id).populate('meta.redId', 'nombre').populate('solicitante', 'nombre apellido fotoPerfil email').select('-__v')
+      const pop = await populateSolicitud(solicitud._id, 'oficializacion')
       return res.status(200).json({ msg: 'Solicitud rechazada', solicitud: pop })
     }
 
@@ -774,7 +776,7 @@ const resolverSolicitudOficializacion = async (req, res) => {
     if (respuesta) solicitud.respuesta = respuesta
     await solicitud.save()
 
-    const pop = await SolicitudUnificada.findById(solicitud._id).populate('meta.redId', 'nombre esOficial').populate('solicitante', 'nombre apellido fotoPerfil email').select('-__v')
+    const pop = await populateSolicitud(solicitud._id, 'oficializacion')
     return res.status(200).json({ msg: 'Solicitud aprobada', solicitud: pop })
   } catch (error) {
     console.error(error)
@@ -808,14 +810,12 @@ const crearSolicitudRevocarAdminRed = async (req, res) => {
       subtype: 'revocar_admin_red',
       solicitante: solicitanteId,
       descripcion: descripcion.trim(),
-      meta: { redId, motivo: descripcion.trim() }
+      meta: { redId }
     })
 
-    const pop = await SolicitudUnificada.findById(nueva._id)
-      .populate('meta.redId', 'nombre deshabilitada')
-      .populate('solicitante', 'nombre apellido fotoPerfil email')
+    const pop = await populateSolicitud(nueva._id, 'revocar_admin_red')
 
-    return res.status(201).json({ msg: 'Solicitud de revocación creada, será revisada por un administrador', solicitud: pop })
+    return res.status(201).json({ msg: 'Solicitud de revocación creada, será revisada por el super administrador', solicitud: pop })
 
   } catch (error) {
     console.error(error)
@@ -844,9 +844,7 @@ const resolverSolicitudRevocarAdminRed = async (req, res) => {
       solicitud.estado = 'rechazada'
       if (respuesta) solicitud.respuesta = respuesta
       await solicitud.save()
-      const pop = await SolicitudUnificada.findById(solicitud._id)
-        .populate('meta.redId', 'nombre deshabilitada')
-        .populate('solicitante', 'nombre apellido fotoPerfil email')
+      const pop = await populateSolicitud(solicitud._id, 'revocar_admin_red')
       return res.status(200).json({ msg: 'Solicitud rechazada', solicitud: pop })
     }
 
@@ -883,7 +881,7 @@ const resolverSolicitudRevocarAdminRed = async (req, res) => {
       usuarioId: user._id,
       emisorId: emisorIdVal,
       tipo: 'mensaje',
-      mensaje: solicitud.meta.motivo || `Tu solicitud de revocación como admin de la red ${red.nombre} fue aprobada`
+      mensaje: solicitud.descripcion || `Tu solicitud de revocación como admin de la red ${red.nombre} fue aprobada`
     })
 
     let emisorData = null
@@ -901,9 +899,7 @@ const resolverSolicitudRevocarAdminRed = async (req, res) => {
       updatedAt: notificacion.updatedAt
     })
 
-    const pop = await SolicitudUnificada.findById(solicitud._id)
-      .populate('meta.redId', 'nombre deshabilitada')
-      .populate('solicitante', 'nombre apellido fotoPerfil email')
+    const pop = await populateSolicitud(solicitud._id, 'revocar_admin_red')
 
     return res.status(200).json({ msg: 'Solicitud aprobada. Rol revocado correctamente', solicitud: pop })
 
@@ -944,12 +940,10 @@ const crearSolicitudPostularAdminRed = async (req, res) => {
       subtype: 'postular_admin_red',
       solicitante: solicitanteId,
       descripcion: descripcion.trim(),
-      meta: { redId, motivo: descripcion.trim() }
+      meta: { redId }
     })
 
-    const pop = await SolicitudUnificada.findById(nueva._id)
-      .populate('meta.redId', 'nombre deshabilitada')
-      .populate('solicitante', 'nombre apellido fotoPerfil email')
+    const pop = await populateSolicitud(nueva._id, 'postular_admin_red')
 
     return res.status(201).json({ msg: 'Postulación enviada, será revisada por un administrador', solicitud: pop })
 
@@ -983,9 +977,7 @@ const resolverSolicitudPostularAdminRed = async (req, res) => {
       solicitud.estado = 'rechazada'
       if (respuesta) solicitud.respuesta = respuesta
       await solicitud.save()
-      const pop = await SolicitudUnificada.findById(solicitud._id)
-        .populate('meta.redId', 'nombre deshabilitada')
-        .populate('solicitante', 'nombre apellido fotoPerfil email')
+      const pop = await populateSolicitud(solicitud._id, 'postular_admin_red')
       return res.status(200).json({ msg: 'Postulación rechazada', solicitud: pop })
     }
 
@@ -1074,9 +1066,7 @@ const resolverSolicitudPostularAdminRed = async (req, res) => {
       updatedAt: notificacion.updatedAt
     })
 
-    const pop = await SolicitudUnificada.findById(solicitud._id)
-      .populate('meta.redId', 'nombre deshabilitada')
-      .populate('solicitante', 'nombre apellido fotoPerfil email')
+    const pop = await populateSolicitud(solicitud._id, 'postular_admin_red')
 
     return res.status(200).json({ msg: 'Postulación aprobada. Nuevo administrador asignado', solicitud: pop })
 
@@ -1090,28 +1080,9 @@ const listarSolicitudes = async (req, res) => {
   const { subtype } = req.params
   const { estado } = req.query
 
-  const populateMap = {
-    verificacion: {
-      meta: { path: 'meta.redId', select: 'nombre' }
-    },
-    rehabilitar_red: {
-      meta: { path: 'meta.redId', select: 'nombre deshabilitada' }
-    },
-    habilitar_usuario: {
-      solicitante: 'nombre apellido fotoPerfil email suspendido'
-    },
-    postular_admin_red: {
-      meta: { path: 'meta.redId', select: 'nombre deshabilitada fotoPerfil cantidadMiembros' },
-      solicitante: 'nombre apellido fotoPerfil email username'
-    },
-    revocar_admin_red: {
-      meta: { path: 'meta.redId', select: 'nombre deshabilitada fotoPerfil cantidadMiembros' },
-      solicitante: 'nombre apellido fotoPerfil email username'
-    }
-  }
-
   try {
-    const q = listarSolicitudesPorSubtype(subtype, populateMap[subtype], estado)
+    const q = listarSolicitudesPorSubtype(subtype, solicitudPopulateMap[subtype], estado)
+    q.select(solicitudSelectMap[subtype] || '-__v')
     const solicitudes = await q.exec()
     return res.status(200).json({ solicitudes })
   } catch (error) {

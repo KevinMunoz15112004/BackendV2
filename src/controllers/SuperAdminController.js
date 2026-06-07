@@ -5,7 +5,7 @@ import RedComunitaria from '../models/RedComunitaria.js'
 import Publicacion from '../models/Publicaciones.js'
 import Comentario from '../models/Comentarios.js'
 import ReporteUnificado from '../models/Reportes.js'
-import { mapEstadoFromBody } from '../helpers/reportHelpers.js'
+import { mapEstadoFromBody, populateReporte, listarReportesGlobal } from '../helpers/reportHelpers.js'
 import { Articulo } from '../models/Articulos.js'
 import { isGlobalRed } from '../helpers/globalRed.js'
 import { v2 as cloudinary } from 'cloudinary'
@@ -495,13 +495,14 @@ const listarReportesRedGlobalSuperAdmin = async (req, res) => {
       ...(estado && { estado })
     }
 
-    const reportes = await ReporteUnificado.find(filtro)
-      .select('-meta.reportadoUsuarioId')
-      .populate('meta.publicacionId', 'titulo contenido tipoContenido mediaUrls')
-      .populate('meta.articuloId', 'titulo descripcion tipoContenido mediaUrls')
-      .populate('reporterId', 'nombre apellido fotoPerfil email')
-      .populate('meta.redId', 'nombre descripcion')
-      .sort({ createdAt: -1 })
+    const reportes = await listarReportesGlobal(
+      filtro,
+      [
+        { path: 'meta.publicacionId', select: 'titulo contenido tipoContenido mediaUrls' },
+        { path: 'meta.articuloId', select: 'titulo descripcion tipoContenido mediaUrls' },
+        { path: 'meta.redId', select: 'nombre descripcion' }
+      ]
+    )
 
     return res.status(200).json({ reportes })
   } catch (error) {
@@ -535,7 +536,7 @@ const resolverReporteRedGlobalSuperAdmin = async (req, res) => {
     await reporte.save()
 
     if (mapped === 'rechazado') {
-      const reportePop = await populateReporte(reporte._id)
+      const reportePop = await populateReporte(reporte._id, reporte.subtype)
       return res.status(200).json({ msg: 'Reporte rechazado', reporte: reportePop })
     }
 
@@ -543,7 +544,7 @@ const resolverReporteRedGlobalSuperAdmin = async (req, res) => {
     if (reporte.subtype === 'publicacion') {
       const publicacion = await Publicacion.findById(reporte.meta.publicacionId)
       if (!publicacion) {
-        const reportePop = await populateReporte(reporte._id)
+        const reportePop = await populateReporte(reporte._id, reporte.subtype)
         return res.status(200).json({ msg: 'Reporte resuelto. La publicación no existe (posible eliminación previa)', reporte: reportePop })
       }
 
@@ -558,7 +559,7 @@ const resolverReporteRedGlobalSuperAdmin = async (req, res) => {
     if (reporte.subtype === 'articulo') {
       const articulo = await Articulo.findById(reporte.meta.articuloId)
       if (!articulo) {
-        const reportePop = await populateReporte(reporte._id)
+        const reportePop = await populateReporte(reporte._id, reporte.subtype)
         return res.status(200).json({ msg: 'Reporte resuelto. El artículo no existe (posible eliminación previa)', reporte: reportePop })
       }
 
@@ -570,11 +571,7 @@ const resolverReporteRedGlobalSuperAdmin = async (req, res) => {
       await Articulo.findByIdAndDelete(articulo._id)
     }
 
-    const reportePop = await ReporteUnificado.findById(id)
-      .populate('meta.publicacionId', 'titulo contenido tipoContenido mediaUrls')
-      .populate('meta.articuloId', 'titulo descripcion tipoContenido mediaUrls')
-      .populate('meta.redId', 'nombre')
-      .populate('reporterId', 'nombre apellido fotoPerfil email')
+    const reportePop = await populateReporte(reporte._id, reporte.subtype)
     return res.status(200).json({ msg: 'Reporte resuelto y contenido eliminado', reporte: reportePop })
 
   } catch (error) {
