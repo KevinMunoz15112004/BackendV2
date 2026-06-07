@@ -12,23 +12,14 @@ import Comentario from '../models/Comentarios.js'
 import RedComunitaria from '../models/RedComunitaria.js'
 import { getGlobalIds, getGlobalRedDoc, filterOutGlobalIds, populateExcludeGlobalMatch, getGlobalId } from '../helpers/globalRed.js'
 
-// NOTE: login functionality moved to /api/auth/login (authController)
-
 const registroEstudiante = async (req, res) => {
   try {
     const { nombre, apellido, email, password, redComunitaria } = req.body
-
-    // Presencia y formato de campos (nombre, apellido, email, password)
-    // son validados por los `validators` en las rutas.
-
-    // Nota: el campo de teléfono fue eliminado del modelo; ya no se valida ni se guarda.
 
     const verificarEmailBDD = await Estudiante.findOne({ email })
     if (verificarEmailBDD) {
       return res.status(400).json({ msg: "Lo sentimos, el email ya se encuentra registrado" })
     }
-
-    // username is optional at registration; frontend will set it later
 
     const verificarEmailSA = await SuperAdmin.findOne({ email })
     if (verificarEmailSA) {
@@ -1154,8 +1145,6 @@ const obtenerPerfilPublicoFeed = async (req, res) => {
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
     const limit = Math.max(parseInt(req.query.limit, 10) || 12, 1);
     const skip = (page - 1) * limit;
-
-    // `usuarioId` validado por `validators.mongoIdParam('usuarioId')` en la ruta
 
     const queryLimit = page * limit;
     const [posts, articles] = await Promise.all([

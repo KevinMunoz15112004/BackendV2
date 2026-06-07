@@ -35,9 +35,15 @@ export const validators = {
   reportPublicacionValidator: report.reportPublicacionValidator,
   reportAppValidator: report.reportAppValidator,
   reportUsuarioValidator: report.reportUsuarioValidator,
+  reportArticuloValidator: report.reportArticuloValidator,
   rehabilitarUsuarioValidator: report.rehabilitarUsuarioValidator,
   listarReportesValidator: report.listarReportesValidator,
-  listarSolicitudesValidator: report.listarSolicitudesValidator
+  listarSolicitudesValidator: report.listarSolicitudesValidator,
+  listarReportesRedGlobalValidator: report.listarReportesRedGlobalValidator,
+  resolverReporteRedGlobalValidator: report.resolverReporteRedGlobalValidator,
+  deleteReporteValidator: report.deleteReporteValidator,      
+  deleteSolicitudValidator: report.deleteSolicitudValidator,
+  listarMisSolicitudesValidator: report.listarMisSolicitudesValidator
 }
 
 // content

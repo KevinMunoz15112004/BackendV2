@@ -4,18 +4,19 @@ import Estudiante from '../models/Estudiantes.js'
 import RedComunitaria from '../models/RedComunitaria.js'
 import Publicacion from '../models/Publicaciones.js'
 import Comentario from '../models/Comentarios.js'
+import ReporteUnificado from '../models/Reportes.js'
+import { mapEstadoFromBody } from '../helpers/reportHelpers.js'
+import { Articulo } from '../models/Articulos.js'
+import { isGlobalRed } from '../helpers/globalRed.js'
 import { v2 as cloudinary } from 'cloudinary'
 import fs from "fs-extra"
 import profileService from '../services/profileService.js'
 import AdminRed from '../models/adminRedes.js'
 import { sendMailToRecoveryPassword, sendMailToRegister, enviarCorreoNuevoAdmin } from "../config/nodemailer.js"
 import jwt from 'jsonwebtoken'
-// Validation is handled by centralized validators in src/validators/
 
 //Controladores para la gestión de la cuenta
 const login = async (req, res) => {
-  // Request format validation moved to centralized validators (routes)
-
   try {
     const { email, password } = req.body
 
@@ -78,8 +79,6 @@ const recuperarPassword = async (req, res) => {
 }
 
 const comprobarTokenPassword = async (req, res) => {
-  // Token param validation is handled by centralized validators in routes
-
   try {
     const { token } = req.params
 
@@ -96,12 +95,9 @@ const comprobarTokenPassword = async (req, res) => {
 }
 
 const crearNuevoPassword = async (req, res) => {
-  // Validation for passwords and token moved to centralized validators (routes)
-
   try {
-    const { password, confirmpassword } = req.body  
+    const { password, confirmpassword } = req.body
     const { token } = req.params
-
 
     const superAdminBDD = await SuperAdmin.findOne({ token })
     if (!superAdminBDD || superAdminBDD.token !== token) {
@@ -121,8 +117,6 @@ const crearNuevoPassword = async (req, res) => {
 }
 
 const actualizarPerfil = async (req, res) => {
-  // Request format validation moved to centralized validators (routes)
-
   try {
     const id = req.user._id;
 
@@ -156,7 +150,8 @@ const actualizarPerfil = async (req, res) => {
 
     res.status(200).json({ msg: "Datos actualizados correctamente" })
   } catch (error) {
-
+    console.error(error)
+    res.status(500).json({ msg: "Error en el servidor" })
   }
 }
 
@@ -182,13 +177,11 @@ const actualizarAvatar = async (req, res) => {
 }
 
 const actualizarPassword = async (req, res) => {
-  // Request format validation moved to centralized validators (routes)
-
   try {
     const id = req.user._id
     const { passwordactual, passwordnuevo } = req.body
 
-    if (!passwordactual || !passwordnuevo) return res.status(400).json({msg: "Completa los campos necesarios"})
+    if (!passwordactual || !passwordnuevo) return res.status(400).json({ msg: "Completa los campos necesarios" })
 
     const superAdminBDD = await SuperAdmin.findById(id);
     if (!superAdminBDD) return res.status(404).json({ msg: "Lo sentimos, no existe el usuario" })
@@ -246,7 +239,6 @@ const obtenerEstudiantePorId = async (req, res) => {
 
 const actualizarEstudiante = async (req, res) => {
   const id = req.params.id;
-  // ID validado por validators en rutas
 
   try {
     const estudiante = await Estudiante.findById(id);
@@ -351,7 +343,7 @@ const actualizarEstudiante = async (req, res) => {
     // Convertir a Estudiante
     if (estudiante.roles.includes('admin_red') && (nuevoRol === 'Estudiante' || (Array.isArray(req.body.roles) && !req.body.roles.includes('admin_red')))) {
       // Revocar rol admin_red y eliminar relaciones activas
-      await AdminRed.updateMany({ usuarioId: estudiante._id, estado: { $in: ['activo','pendiente'] } }, { $set: { estado: 'revocado' } })
+      await AdminRed.updateMany({ usuarioId: estudiante._id, estado: { $in: ['activo', 'pendiente'] } }, { $set: { estado: 'revocado' } })
       await estudiante.removeRole('admin_red')
 
       if (estudiante.redComunitaria) {
@@ -392,74 +384,30 @@ const actualizarEstudiante = async (req, res) => {
 
 //Controladores para la gestión de redes comunitarias
 const obtenerRedes = async (req, res) => {
-  const redes = await RedComunitaria.find().populate('miembros', 'nombre apellido email')
-  res.json(redes);
+  try {
+    const redes = await RedComunitaria.find()
+      .select('nombre descripcion proposito fotoPerfil cantidadMiembros esVerificada esOficial esGlobal deshabilitada estadoAprobacion createdAt')
+      .lean()
+    return res.status(200).json({ redes })
+  } catch (error) {
+    console.error(error)
+    return res.status(500).json({ msg: 'Error en el servidor' })
+  }
 }
 
 const obtenerRedPorId = async (req, res) => {
-  const id = req.params.id;
-  // ID validado por validators en rutas
-
+  const { id } = req.params
   try {
-    const red = await RedComunitaria.findById(id).populate('miembros', 'nombre apellido email');
+    const red = await RedComunitaria.findById(id)
+      .select('nombre descripcion proposito fotoPerfil cantidadMiembros esVerificada esOficial esGlobal deshabilitada estadoAprobacion createdAt')
+      .lean()
 
-    if (!red) {
-      return res.status(404).json({ msg: 'Red no encontrada' });
-    }
+    if (!red) return res.status(404).json({ msg: 'Red no encontrada' })
 
-    res.json(red);
+    return res.status(200).json({ red })
   } catch (error) {
-    res.status(500).json({ mensaje: error.message });
-  }
-};
-
-const actualizarRed = async (req, res) => {
-  const id = req.params.id;
-  // ID validado por validators en rutas
-
-  try {
-    const redExistente = await RedComunitaria.findById(id)
-    if (!redExistente) {
-      return res.status(404).json({ msg: "Red no encontrada" })
-    }
-
-    const { nombre, descripcion } = req.body
-
-    if (!nombre && !descripcion && typeof req.body.deshabilitada === 'undefined') {
-      return res.status(400).json({ msg: "Lo sentimos, debes llenar al menos un campo a actualizar" });
-    }
-
-    const camposActualizados = {};
-
-    if (nombre) {
-
-      const nombreExistente = await RedComunitaria.findOne({ nombre, _id: { $ne: id } })
-      if (nombreExistente) {
-        return res.status(400).json({ msg: "Ya existe una red con ese nombre" })
-      }
-
-      camposActualizados.nombre = nombre
-
-    }
-
-    if (descripcion) {
-      camposActualizados.descripcion = descripcion
-    }
-
-    // Permitir a SuperAdmin deshabilitar o habilitar la red
-    if (typeof req.body.deshabilitada !== 'undefined') {
-      camposActualizados.deshabilitada = Boolean(req.body.deshabilitada)
-    }
-
-    const redActualizada = await RedComunitaria.findByIdAndUpdate(
-      id,
-      camposActualizados,
-      { new: true }
-    )
-
-    res.json(redActualizada)
-  } catch (error) {
-    res.status(500).json({ error: error.message })
+    console.error(error)
+    return res.status(500).json({ msg: 'Error en el servidor' })
   }
 }
 
@@ -469,26 +417,25 @@ const eliminarRed = async (req, res) => {
     const red = await RedComunitaria.findById(id)
     if (!red) return res.status(404).json({ msg: 'Red no encontrada' })
 
-    // Condición 1: no debe tener admin activo
+    if (await isGlobalRed(red._id)) return res.status(400).json({ msg: 'La red global no puede eliminarse' })
+
     const adminActivo = await AdminRed.findOne({ redId: red._id, estado: 'activo' })
     if (adminActivo) return res.status(400).json({ msg: 'La red tiene un administrador activo' })
 
-    // Condición 2: no debe tener miembros
-    if (red.miembros.length > 0) return res.status(400).json({ 
-      msg: `La red aún tiene ${red.miembros.length} miembro(s). No puede eliminarse.` 
+    if (red.miembros.length > 0) return res.status(400).json({
+      msg: `La red aún tiene ${red.miembros.length} miembro(s). No puede eliminarse.`
     })
 
-    // Condición 3: debe estar inactiva el tiempo suficiente
-    // Por ahora usas deshabilitada + sin actividad reciente (timestamps)
-    if (!red.deshabilitada) return res.status(400).json({ 
-      msg: 'La red debe estar deshabilitada antes de poder eliminarse' 
+    if (!red.deshabilitada) return res.status(400).json({
+      msg: 'La red debe estar deshabilitada antes de poder eliminarse'
     })
 
     const diasDesdeActualizacion = (Date.now() - new Date(red.updatedAt)) / (1000 * 60 * 60 * 24)
-    if (diasDesdeActualizacion < 90) return res.status(400).json({ 
-      msg: `La red debe permanecer inactiva al menos 90 días. Lleva ${Math.floor(diasDesdeActualizacion)} días.` 
+    if (diasDesdeActualizacion < 90) return res.status(400).json({
+      msg: `La red debe permanecer inactiva al menos 90 días. Lleva ${Math.floor(diasDesdeActualizacion)} días.`
     })
 
+    // Cascada publicaciones
     const publicaciones = await Publicacion.find({ comunidadId: id }).select('_id').lean()
     const postIds = (publicaciones || []).map(p => p._id).filter(Boolean)
 
@@ -501,32 +448,135 @@ const eliminarRed = async (req, res) => {
       await Publicacion.deleteMany({ _id: { $in: postIds } })
     }
 
+    // Cascada artículos
+    const articulos = await Articulo.find({ redComunitaria: id }).select('_id').lean()
+    const articuloIds = (articulos || []).map(a => a._id).filter(Boolean)
+    if (articuloIds.length > 0) {
+      await Comentario.deleteMany({ postId: { $in: articuloIds } })
+      await Articulo.deleteMany({ _id: { $in: articuloIds } })
+    }
+
+    // Cascada reportes y solicitudes
+    await ReporteUnificado.deleteMany({ 'meta.redId': red._id })
+    await SolicitudUnificada.deleteMany({ 'meta.redId': red._id })
+
+    // Reportes de publicaciones de la red
+    if (postIds.length > 0) {
+      await ReporteUnificado.deleteMany({ 'meta.publicacionId': { $in: postIds } })
+    }
+
+    // Limpiar estudiantes
     await Estudiante.updateMany(
       { redComunitaria: id },
       { $pull: { redComunitaria: id } }
     )
 
     await RedComunitaria.findByIdAndDelete(id)
-    res.json({ msg: 'Red eliminada correctamente' })
+    return res.status(200).json({ msg: 'Red eliminada correctamente' })
   } catch (error) {
-    res.status(500).json({ msg: error.message })
+    console.error(error)
+    return res.status(500).json({ msg: 'Error en el servidor' })
   }
 }
 
-const marcarRedVerificada = async (req, res) => {
+const listarReportesRedGlobalSuperAdmin = async (req, res) => {
   try {
-    const id = req.params.id
-    // ID validado por validators en rutas
+    const { estado } = req.query
+    const { subtype } = req.params
 
-    const { verificada = true } = req.body
+    const subtypeFiltro = subtype ?? { $in: ['publicacion', 'articulo'] }
 
-    const red = await RedComunitaria.findById(id)
-    if (!red) return res.status(404).json({ msg: 'Red no encontrada' })
+    const redGlobal = await RedComunitaria.findOne({ esGlobal: true })
+    if (!redGlobal) return res.status(404).json({ msg: 'Red global no encontrada' })
 
-    red.esVerificada = Boolean(verificada)
-    await red.save()
+    const filtro = {
+      subtype: subtypeFiltro,
+      'meta.redId': redGlobal._id,
+      ...(estado && { estado })
+    }
 
-    return res.status(200).json({ msg: 'Estado de verificación actualizado', red })
+    const reportes = await ReporteUnificado.find(filtro)
+      .select('-meta.reportadoUsuarioId')
+      .populate('meta.publicacionId', 'titulo contenido tipoContenido mediaUrls')
+      .populate('meta.articuloId', 'titulo descripcion tipoContenido mediaUrls')
+      .populate('reporterId', 'nombre apellido fotoPerfil email')
+      .populate('meta.redId', 'nombre descripcion')
+      .sort({ createdAt: -1 })
+
+    return res.status(200).json({ reportes })
+  } catch (error) {
+    console.error(error)
+    return res.status(500).json({ msg: 'Error en el servidor' })
+  }
+}
+
+const resolverReporteRedGlobalSuperAdmin = async (req, res) => {
+  try {
+    const { id } = req.params
+    const { estado, respuesta } = req.body
+
+    const mapped = mapEstadoFromBody(estado)
+
+    const redGlobal = await RedComunitaria.findOne({ esGlobal: true })
+    if (!redGlobal) return res.status(404).json({ msg: 'Red global no encontrada' })
+
+    const reporte = await ReporteUnificado.findById(id)
+    if (!reporte || !['publicacion', 'articulo'].includes(reporte.subtype))
+      return res.status(404).json({ msg: 'Reporte no encontrado' })
+
+    if (String(reporte.meta.redId) !== String(redGlobal._id))
+      return res.status(403).json({ msg: 'Este reporte no pertenece a la red global' })
+
+    if (reporte.estado === 'resuelto')
+      return res.status(400).json({ msg: 'El reporte ya fue resuelto' })
+
+    reporte.estado = mapped
+    if (respuesta) reporte.respuesta = respuesta
+    await reporte.save()
+
+    if (mapped === 'rechazado') {
+      const reportePop = await populateReporte(reporte._id)
+      return res.status(200).json({ msg: 'Reporte rechazado', reporte: reportePop })
+    }
+
+    // Resuelto: eliminar contenido según subtype
+    if (reporte.subtype === 'publicacion') {
+      const publicacion = await Publicacion.findById(reporte.meta.publicacionId)
+      if (!publicacion) {
+        const reportePop = await populateReporte(reporte._id)
+        return res.status(200).json({ msg: 'Reporte resuelto. La publicación no existe (posible eliminación previa)', reporte: reportePop })
+      }
+
+      await Comentario.deleteMany({ postId: publicacion._id })
+      await Estudiante.updateMany(
+        { publicacionesGuardadas: publicacion._id },
+        { $pull: { publicacionesGuardadas: publicacion._id } }
+      )
+      await Publicacion.findByIdAndDelete(publicacion._id)
+    }
+
+    if (reporte.subtype === 'articulo') {
+      const articulo = await Articulo.findById(reporte.meta.articuloId)
+      if (!articulo) {
+        const reportePop = await populateReporte(reporte._id)
+        return res.status(200).json({ msg: 'Reporte resuelto. El artículo no existe (posible eliminación previa)', reporte: reportePop })
+      }
+
+      await Comentario.deleteMany({ postId: articulo._id })
+      await Estudiante.updateMany(
+        { publicacionesGuardadas: articulo._id },
+        { $pull: { publicacionesGuardadas: articulo._id } }
+      )
+      await Articulo.findByIdAndDelete(articulo._id)
+    }
+
+    const reportePop = await ReporteUnificado.findById(id)
+      .populate('meta.publicacionId', 'titulo contenido tipoContenido mediaUrls')
+      .populate('meta.articuloId', 'titulo descripcion tipoContenido mediaUrls')
+      .populate('meta.redId', 'nombre')
+      .populate('reporterId', 'nombre apellido fotoPerfil email')
+    return res.status(200).json({ msg: 'Reporte resuelto y contenido eliminado', reporte: reportePop })
+
   } catch (error) {
     console.error(error)
     return res.status(500).json({ msg: 'Error en el servidor' })
@@ -547,7 +597,7 @@ export {
   actualizarEstudiante,
   obtenerRedes,
   obtenerRedPorId,
-  actualizarRed,
   eliminarRed,
-  marcarRedVerificada
+  listarReportesRedGlobalSuperAdmin,
+  resolverReporteRedGlobalSuperAdmin
 }

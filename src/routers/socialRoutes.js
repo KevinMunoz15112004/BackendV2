@@ -21,7 +21,7 @@ import {
   listarLikesPublicacion,
 } from '../controllers/socialController.js'
 import { requirePerfilCompleto } from '../middlewares/checkPerfilCompleto.js'
-import { crearReportePublicacion, crearReporteApp, crearReporteUsuario, listarReportesAdminRed } from '../controllers/reportesSolicitudesController.js'
+import { crearReportePublicacion, crearReporteApp, crearReporteUsuario, listarReportesAdminRed, crearReporteArticulo } from '../controllers/reportesSolicitudesController.js'
 
 const router = Router()
 
@@ -46,7 +46,8 @@ router.patch('/notificaciones/:id/leida', verifyToken, validators.mongoIdParam('
 
 // Reportes: estudiantes crean (publicación), admin de red consulta los reportes de su red
 router.post('/reportes/publicacion', verifyToken, requirePerfilCompleto, validators.reportPublicacionValidator, validateResult, crearReportePublicacion)
-router.get('/admin/reportes', verifyToken, requireRole('admin_red'), listarReportesAdminRed)
+router.post('/reportes/articulo', verifyToken, requirePerfilCompleto, validators.reportArticuloValidator, validateResult, crearReporteArticulo)
+router.get('/admin/red/reportes', verifyToken, requireRole('admin_red'), listarReportesAdminRed)
 
 // Reportes generales de la app (van al superadmin)
 router.post('/reportes/app', verifyToken, validators.reportAppValidator, validateResult, crearReporteApp)

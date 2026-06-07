@@ -1,10 +1,10 @@
 import RedComunitaria from '../models/RedComunitaria.js'
 
-// Simple in-memory cache for global red ids/docs
-const CACHE_TTL = 30 * 1000 // 30 seconds
+// Cache para almacenar temporalmente los IDs de las redes globales y evitar consultas repetidas a la base de datos. Se refresca cada 30 segundos o cuando se detecta un error en la consulta.
+const CACHE_TTL = 30 * 1000 
 const cache = {
-  ids: null, // array of string ids
-  id: null, // single string id (first)
+  ids: null, 
+  id: null, 
   last: 0
 }
 

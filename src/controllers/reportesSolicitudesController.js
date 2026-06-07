@@ -3,16 +3,18 @@ import SolicitudUnificada from '../models/Solicitudes.js'
 import RedComunitaria from '../models/RedComunitaria.js'
 import Publicacion from '../models/Publicaciones.js'
 import Estudiante from '../models/Estudiantes.js'
+import { Articulo }  from '../models/Articulos.js'
 import AdminRed from '../models/adminRedes.js'
 import Comentario from '../models/Comentarios.js'
 import { crearNotificacion } from '../helpers/notificaciones.js'
 import { triggerUserChannel } from '../config/pusher.js'
 import { mapEstadoFromBody, listarReportesPorSubtype, listarSolicitudesPorSubtype } from '../helpers/reportHelpers.js'
+import { isGlobalRed } from '../helpers/globalRed.js'
 
 // Create report: publication
 const crearReportePublicacion = async (req, res) => {
   try {
-    const { tipo, descripcion, publicacionId, archivos = [] } = req.body
+    const { tipo, descripcion, publicacionId } = req.body
     const publicacion = await Publicacion.findById(publicacionId)
     if (!publicacion) return res.status(404).json({ msg: 'Publicación no encontrada' })
 
@@ -21,7 +23,6 @@ const crearReportePublicacion = async (req, res) => {
       tipo,
       descripcion: descripcion ? descripcion.trim() : '',
       reporterId: req.estudianteBDD ? req.estudianteBDD._id : (req.user?._id || null),
-      archivos,
       meta: { publicacionId: publicacion._id, redId: publicacion.comunidadId || null }
     })
 
@@ -33,10 +34,39 @@ const crearReportePublicacion = async (req, res) => {
   }
 }
 
+const crearReporteArticulo = async (req, res) => {
+  try {
+    const { tipo, descripcion, articuloId } = req.body
+
+    const articulo = await Articulo.findById(articuloId)
+    if (!articulo) return res.status(404).json({ msg: 'Artículo no encontrado' })
+
+    const nuevo = await ReporteUnificado.create({
+      subtype: 'articulo',          
+      tipo,
+      descripcion: descripcion ? descripcion.trim() : '',
+      reporterId: req.estudianteBDD?._id ?? req.user?._id ?? null,
+      meta: {
+        articuloId: articulo._id,    
+        redId: articulo.redComunitaria || null
+      }
+    })
+
+    const pop = await ReporteUnificado.findById(nuevo._id)
+      .populate('meta.articuloId')
+      .populate('meta.redId', 'nombre')
+
+    return res.status(201).json({ msg: 'Reporte creado', reporte: pop })
+  } catch (error) {
+    console.error(error)
+    return res.status(500).json({ msg: 'Error en el servidor' })
+  }
+}
+
 // Create report: red
 const crearReporteRed = async (req, res) => {
   try {
-    const { tipo, descripcion, redId, archivos = [] } = req.body
+    const { tipo, descripcion, redId } = req.body
     const red = await RedComunitaria.findById(redId)
     if (!red) return res.status(404).json({ msg: 'Red comunitaria no encontrada' })
 
@@ -45,7 +75,6 @@ const crearReporteRed = async (req, res) => {
       tipo,
       descripcion: descripcion ? descripcion.trim() : '',
       reporterId: req.user?._id || null,
-      archivos,
       meta: { redId }
     })
 
@@ -60,13 +89,12 @@ const crearReporteRed = async (req, res) => {
 // Create report: app
 const crearReporteApp = async (req, res) => {
   try {
-    const { tipo, descripcion, archivos = [] } = req.body
+    const { tipo, descripcion } = req.body
     const nuevo = await ReporteUnificado.create({
       subtype: 'app',
       tipo,
       descripcion: descripcion ? descripcion.trim() : '',
-      reporterId: req.estudianteBDD ? req.estudianteBDD._id : (req.user?._id || null),
-      archivos
+      reporterId: req.estudianteBDD ? req.estudianteBDD._id : (req.user?._id || null)
     })
     const pop = await ReporteUnificado.findById(nuevo._id).populate('reporterId', 'nombre apellido fotoPerfil email')
     return res.status(201).json({ msg: 'Reporte creado', reporte: pop })
@@ -79,7 +107,7 @@ const crearReporteApp = async (req, res) => {
 // Create report: usuario
 const crearReporteUsuario = async (req, res) => {
   try {
-    const { tipo, descripcion, reportadoUsuarioId, publicacionId, redId, archivos = [] } = req.body
+    const { tipo, descripcion, reportadoUsuarioId, publicacionId, redId } = req.body
 
     const usuario = await Estudiante.findById(reportadoUsuarioId)
     if (!usuario) return res.status(404).json({ msg: 'Usuario reportado no encontrado' })
@@ -89,7 +117,6 @@ const crearReporteUsuario = async (req, res) => {
       tipo,
       descripcion: descripcion ? descripcion.trim() : '',
       reporterId: req.estudianteBDD ? req.estudianteBDD._id : (req.user?._id || null),
-      archivos,
       meta: {
         reportadoUsuarioId,
         publicacionId: publicacionId || null,
@@ -324,8 +351,10 @@ const listarReportesAdminRed = async (req, res) => {
       subtype: 'publicacion',
       'meta.redId': admin.redAsignada
     })
+      .select('-meta.reportadoUsuarioId -meta.articuloId')
       .populate('meta.publicacionId', 'titulo contenido tipoContenido mediaUrls')
       .populate('reporterId', 'nombre apellido fotoPerfil email')
+      .populate('meta.redId', 'nombre descripcion')
       .sort({ createdAt: -1 })
 
     return res.status(200).json({ reportes })
@@ -336,12 +365,39 @@ const listarReportesAdminRed = async (req, res) => {
   }
 }
 
-// Deletions
-const deleteReportePorId = async (req, res, subtype) => {
+// Borrar reporte o solicitud
+const deleteReportePorId = async (req, res) => {
   try {
-    const { id } = req.params
+    const { id, subtype } = req.params
     const reporte = await ReporteUnificado.findById(id)
-    if (!reporte || (subtype && reporte.subtype !== subtype)) return res.status(404).json({ msg: 'Reporte no encontrado' })
+    if (!reporte || (subtype && reporte.subtype !== subtype))
+      return res.status(404).json({ msg: 'Reporte no encontrado' })
+
+    if (reporte.estado === 'pendiente')
+      return res.status(400).json({ msg: 'No puedes eliminar un reporte pendiente' })
+
+    const esGlobalRed = await isGlobalRed(reporte.meta.redId)
+    const esSuperAdmin = req.user?.rol === 'SuperAdmin'
+    const esAdminRed = req.user?.roles?.includes('admin_red')
+
+    if (esSuperAdmin) {
+      if ((reporte.subtype === 'publicacion' || reporte.subtype === 'articulo') && !esGlobalRed)
+        return res.status(403).json({ msg: 'Este reporte pertenece a un admin de red' })
+    }
+
+    if (esAdminRed) {
+      if (reporte.subtype !== 'publicacion')
+        return res.status(403).json({ msg: 'No estás autorizado para eliminar este tipo de reporte' })
+
+      if (esGlobalRed)
+        return res.status(403).json({ msg: 'No estás autorizado para eliminar reportes de la red global' })
+
+      const relaciones = req.adminRelations || []
+      const activa = relaciones.find(r => r.estado === 'activo')
+      if (!activa || String(reporte.meta.redId) !== String(activa.redId))
+        return res.status(403).json({ msg: 'No estás autorizado para eliminar este reporte' })
+    }
+
     await ReporteUnificado.findByIdAndDelete(id)
     return res.status(200).json({ msg: 'Reporte eliminado' })
   } catch (error) {
@@ -350,10 +406,23 @@ const deleteReportePorId = async (req, res, subtype) => {
   }
 }
 
-const deleteReporteUsuario = async (req, res) => deleteReportePorId(req, res, 'usuario')
-const deleteReporteRed = async (req, res) => deleteReportePorId(req, res, 'red')
-const deleteReporteApp = async (req, res) => deleteReportePorId(req, res, 'app')
-const deleteReportePublicacionAdmin = async (req, res) => deleteReportePorId(req, res, 'publicacion')
+const deleteSolicitudPorId = async (req, res) => {
+  try {
+    const { id, subtype } = req.params
+    const sol = await SolicitudUnificada.findById(id)
+    if (!sol || (subtype && sol.subtype !== subtype))
+      return res.status(404).json({ msg: 'Solicitud no encontrada' })
+
+    if (sol.estado === 'pendiente')
+      return res.status(400).json({ msg: 'No puedes eliminar una solicitud pendiente' })
+
+    await SolicitudUnificada.findByIdAndDelete(id)
+    return res.status(200).json({ msg: 'Solicitud eliminada' })
+  } catch (error) {
+    console.error(error)
+    return res.status(500).json({ msg: 'Error en el servidor' })
+  }
+}
 
 // Solicitudes: crear verificacion
 const crearSolicitudVerificacion = async (req, res) => {
@@ -498,7 +567,6 @@ const crearSolicitudRehabilitar = async (req, res) => {
   try {
     const solicitanteId = req.user?._id
     const { redId, descripcion } = req.body
-    // Presence/format validation for `redId` and `descripcion` is handled by route validators.
     const red = await RedComunitaria.findById(redId)
     if (!red) return res.status(404).json({ msg: 'Red no encontrada' })
     const adminRelation = await AdminRed.findOne({ usuarioId: solicitanteId, redId: redId, estado: 'activo' })
@@ -521,7 +589,6 @@ const crearSolicitudHabilitarUsuario = async (req, res) => {
   try {
     let solicitanteId = req.user?._id
     const { motivo, email, username } = req.body
-    // Presence/format validation for `motivo` and (email|username) is handled by route validators.
     let estudiante = null
     if (solicitanteId) {
       estudiante = await Estudiante.findById(solicitanteId).select('-password')
@@ -533,7 +600,6 @@ const crearSolicitudHabilitarUsuario = async (req, res) => {
     if (!estudiante.suspendido) return res.status(400).json({ msg: 'El usuario no está suspendido' })
     const existePendiente = await SolicitudUnificada.findOne({ subtype: 'habilitar_usuario', solicitante: solicitanteId, estado: 'pendiente' })
     if (existePendiente) return res.status(400).json({ msg: 'Ya existe una solicitud pendiente' })
-    // ensure solicitanteId is set to the found student's id
     solicitanteId = solicitanteId || estudiante._id
     const nueva = await SolicitudUnificada.create({ subtype: 'habilitar_usuario', solicitante: solicitanteId, descripcion: motivo.trim(), meta: { motivo } })
     const pop = await SolicitudUnificada.findById(nueva._id).populate('solicitante', 'nombre apellido fotoPerfil email')
@@ -544,63 +610,18 @@ const crearSolicitudHabilitarUsuario = async (req, res) => {
   }
 }
 
-// List own solicitudes
-const listarMisSolicitudesRehabilitar = async (req, res) => {
+// Listar solicitudes del admin logueado por subtype
+const listarMisSolicitudes = async (req, res) => {
   try {
+    const { subtype } = req.params
     const adminId = req.user?._id
-    const solicitudes = await SolicitudUnificada.find({ subtype: 'rehabilitar_red', solicitante: adminId }).populate('meta.redId', 'nombre deshabilitada').populate('solicitante', 'nombre apellido fotoPerfil email').sort({ createdAt: -1 })
+
+    const solicitudes = await SolicitudUnificada.find({ subtype, solicitante: adminId })
+      .populate('meta.redId', 'nombre deshabilitada')
+      .populate('solicitante', 'nombre apellido fotoPerfil email')
+      .sort({ createdAt: -1 })
+
     return res.status(200).json({ solicitudes })
-  } catch (error) {
-    console.error(error)
-    return res.status(500).json({ msg: 'Error en el servidor' })
-  }
-}
-
-const listarMisSolicitudesVerificacion = async (req, res) => {
-  try {
-    const adminId = req.user?._id
-    const solicitudes = await SolicitudUnificada.find({ subtype: 'verificacion', solicitante: adminId }).populate('meta.redId', 'nombre').populate('solicitante', 'nombre apellido fotoPerfil email').sort({ createdAt: -1 })
-    return res.status(200).json({ solicitudes })
-  } catch (error) {
-    console.error(error)
-    return res.status(500).json({ msg: 'Error en el servidor' })
-  }
-}
-
-// Delete solicitudes
-const deleteSolicitudRehabilitar = async (req, res) => {
-  try {
-    const { id } = req.params
-    const sol = await SolicitudUnificada.findById(id)
-    if (!sol || sol.subtype !== 'rehabilitar_red') return res.status(404).json({ msg: 'Solicitud no encontrada' })
-    await SolicitudUnificada.findByIdAndDelete(id)
-    return res.status(200).json({ msg: 'Solicitud eliminada' })
-  } catch (error) {
-    console.error(error)
-    return res.status(500).json({ msg: 'Error en el servidor' })
-  }
-}
-
-const deleteSolicitudHabilitarUsuario = async (req, res) => {
-  try {
-    const { id } = req.params
-    const sol = await SolicitudUnificada.findById(id)
-    if (!sol || sol.subtype !== 'habilitar_usuario') return res.status(404).json({ msg: 'Solicitud no encontrada' })
-    await SolicitudUnificada.findByIdAndDelete(id)
-    return res.status(200).json({ msg: 'Solicitud eliminada' })
-  } catch (error) {
-    console.error(error)
-    return res.status(500).json({ msg: 'Error en el servidor' })
-  }
-}
-
-const deleteSolicitudVerificacion = async (req, res) => {
-  try {
-    const { id } = req.params
-    const sol = await SolicitudUnificada.findById(id)
-    if (!sol || sol.subtype !== 'verificacion') return res.status(404).json({ msg: 'Solicitud no encontrada' })
-    await SolicitudUnificada.findByIdAndDelete(id)
-    return res.status(200).json({ msg: 'Solicitud eliminada' })
   } catch (error) {
     console.error(error)
     return res.status(500).json({ msg: 'Error en el servidor' })
@@ -1113,24 +1134,19 @@ export {
   crearSolicitudVerificacion,
   resolverSolicitudVerificacion,
   crearSolicitudRehabilitar,
+  deleteSolicitudPorId,
+  deleteReportePorId,
   resolverSolicitudRehabilitar,
   crearSolicitudHabilitarUsuario,
   resolverSolicitudHabilitarUsuario,
-  deleteReporteUsuario,
-  deleteReporteRed,
-  deleteReporteApp,
-  deleteReportePublicacionAdmin,
-  deleteSolicitudRehabilitar,
-  deleteSolicitudHabilitarUsuario,
-  deleteSolicitudVerificacion,
   deleteSolicitudRehabilitarByAdmin,
-  listarMisSolicitudesRehabilitar,
-  listarMisSolicitudesVerificacion,
+  listarMisSolicitudes,
   crearSolicitudRevocarAdminRed,
   resolverSolicitudRevocarAdminRed,
   crearSolicitudPostularAdminRed,
   resolverSolicitudPostularAdminRed,
   listarSolicitudes,
   resolverSolicitudOficializacion,
-  crearSolicitudOficializacion
+  crearSolicitudOficializacion,
+  crearReporteArticulo
 }
