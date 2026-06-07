@@ -13,21 +13,23 @@ import { isGlobalRed, filterOutGlobalIds } from '../helpers/globalRed.js'
 
 const perfilAdminRed = async (req, res) => {
   try {
-    delete req.user.token
-    delete req.user.confirmEmail
-    delete req.user.createdAt
-    delete req.user.updatedAt
-    delete req.user.__v
-
-    if (Array.isArray(req.user.redComunitaria) && req.user.redComunitaria.length > 0) {
-      req.user.redComunitaria = await filterOutGlobalIds(req.user.redComunitaria)
-    }
-
     if (req.user.redAsignada && await isGlobalRed(req.user.redAsignada)) {
       delete req.user.redAsignada
     }
 
-    return res.status(200).json(req.user)
+    const perfil = {
+      _id: req.user._id,
+      nombre: req.user.nombre,
+      apellido: req.user.apellido,
+      fotoPerfil: req.user.fotoPerfil,
+      email: req.user.email,
+      username: req.user.username,
+      biografia: req.user.biografia,
+      roles: req.user.roles,
+      redAsignada: req.user.redAsignada || null
+    }
+
+    return res.status(200).json(perfil)
   } catch (error) {
     console.error('Error en perfilAdminRed:', error)
     return res.status(500).json({ msg: 'Error en el servidor' })
