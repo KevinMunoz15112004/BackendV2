@@ -1,6 +1,5 @@
 import { Router } from 'express'
 import { verifyToken, requireRole } from '../middlewares/auth.js'
-import { autenticarToken, isSuperAdmin } from '../middlewares/authSuperAdmin.js'
 import validators from '../validators/index.js'
 import validateResult from '../validators/validateResult.js'
 import {
@@ -16,12 +15,10 @@ import {
   listarPublicacionesLiked,
   listarNotificaciones,
   marcarNotificacionLeida,
-  listarRedesPendientesAprobacion,
-  resolverAprobacionRed,
   listarLikesPublicacion,
 } from '../controllers/socialController.js'
 import { requirePerfilCompleto } from '../middlewares/checkPerfilCompleto.js'
-import { crearReportePublicacion, crearReporteApp, crearReporteUsuario, listarReportesAdminRed, crearReporteArticulo } from '../controllers/reportesSolicitudesController.js'
+import { crearReportePublicacion, crearReporteApp, crearReporteUsuario, crearReporteArticulo } from '../controllers/reportesSolicitudesController.js'
 
 const router = Router()
 
@@ -30,33 +27,28 @@ router.post('/redes/solicitar-creacion', verifyToken, validators.title('nombre')
 
 router.post('/publicaciones/:id/like', verifyToken, requirePerfilCompleto, validators.mongoIdParam('id'), validateResult, darLikePublicacion)
 router.delete('/publicaciones/:id/like', verifyToken, requirePerfilCompleto, validators.mongoIdParam('id'), validateResult, quitarLikePublicacion)
-router.get('/publicaciones/:id/likes', verifyToken, validators.mongoIdParam('id'), validateResult, listarLikesPublicacion)
+router.get('/publicaciones/:id/likes', verifyToken, requirePerfilCompleto, validators.mongoIdParam('id'), validateResult, listarLikesPublicacion)
 
 router.post('/publicaciones/:id/comentarios', verifyToken, requirePerfilCompleto, validators.mongoIdParam('id'), validators.trimAndNotEmpty('contenido'), validateResult, crearComentarioPublicacion)
 router.post('/comentarios/:comentarioId/responder', verifyToken, requirePerfilCompleto, validators.mongoIdParam('comentarioId'), validators.trimAndNotEmpty('contenido'), validateResult, responderComentario)
-router.get('/publicaciones/:id/comentarios/arbol', verifyToken, validators.mongoIdParam('id'), validateResult, listarComentariosArbol)
+router.get('/publicaciones/:id/comentarios/arbol', verifyToken, requirePerfilCompleto, validators.mongoIdParam('id'), validateResult, listarComentariosArbol)
 
 router.post('/publicaciones/:id/guardar', verifyToken, requirePerfilCompleto, validators.mongoIdParam('id'), validateResult, guardarPublicacion)
 router.delete('/publicaciones/:id/guardar', verifyToken, requirePerfilCompleto, validators.mongoIdParam('id'), validateResult, quitarGuardadoPublicacion)
-router.get('/usuarios/guardados', verifyToken, listarPublicacionesGuardadas)
-router.get('/usuarios/likes', verifyToken, listarPublicacionesLiked)
+router.get('/usuarios/guardados', verifyToken, requirePerfilCompleto, listarPublicacionesGuardadas)
+router.get('/usuarios/likes', verifyToken, requirePerfilCompleto, listarPublicacionesLiked)
 
-router.get('/notificaciones', verifyToken, listarNotificaciones)
-router.patch('/notificaciones/:id/leida', verifyToken, validators.mongoIdParam('id'), validateResult, marcarNotificacionLeida)
+router.get('/notificaciones', verifyToken, requirePerfilCompleto, listarNotificaciones)
+router.patch('/notificaciones/:id/leida', verifyToken, requirePerfilCompleto, validators.mongoIdParam('id'), validateResult, marcarNotificacionLeida)
 
 // Reportes: estudiantes crean (publicación), admin de red consulta los reportes de su red
 router.post('/reportes/publicacion', verifyToken, requirePerfilCompleto, validators.reportPublicacionValidator, validateResult, crearReportePublicacion)
 router.post('/reportes/articulo', verifyToken, requirePerfilCompleto, validators.reportArticuloValidator, validateResult, crearReporteArticulo)
-router.get('/admin/red/reportes', verifyToken, requireRole('admin_red'), listarReportesAdminRed)
 
 // Reportes generales de la app (van al superadmin)
-router.post('/reportes/app', verifyToken, validators.reportAppValidator, validateResult, crearReporteApp)
+router.post('/reportes/app', verifyToken, requirePerfilCompleto, validators.reportAppValidator, validateResult, crearReporteApp)
 
 // Reportes de usuarios (van al superadmin)
-router.post('/reportes/usuario', verifyToken, validators.reportUsuarioValidator, validateResult, crearReporteUsuario)
-
-// Superadmin
-router.get('/superadmin/redes/pendientes', autenticarToken, isSuperAdmin, listarRedesPendientesAprobacion)
-router.patch('/superadmin/redes/:redId/aprobacion', autenticarToken, isSuperAdmin, validators.mongoIdParam('redId'), validateResult, resolverAprobacionRed)
+router.post('/reportes/usuario', verifyToken, requirePerfilCompleto, validators.reportUsuarioValidator, validateResult, crearReporteUsuario)
 
 export default router

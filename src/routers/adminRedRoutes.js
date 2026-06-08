@@ -3,7 +3,7 @@ import { verifyToken, requireRole } from '../middlewares/auth.js'
 import { perfilAdminRed, verEstudiantesDeRed, eliminarEstudianteDeRed, actualizarRedComunitaria, obtenerInfoRed } from '../controllers/adminRedController.js'
 import validators from '../validators/index.js'
 import validateResult from '../validators/validateResult.js'
-import { resolverReportePublicacionAdmin, crearSolicitudVerificacion, crearSolicitudRehabilitar, deleteSolicitudRehabilitarByAdmin, crearSolicitudRevocarAdminRed, crearSolicitudOficializacion, deleteReportePorId, listarMisSolicitudes } from '../controllers/reportesSolicitudesController.js'
+import { resolverReportePublicacionAdmin, crearSolicitudVerificacion, crearSolicitudRehabilitar, deleteSolicitudRehabilitarByAdmin, crearSolicitudRevocarAdminRed, crearSolicitudOficializacion, deleteReportePorId, listarMisSolicitudes, listarReportesAdminRed } from '../controllers/reportesSolicitudesController.js'
 
 const router = Router()
 
@@ -17,6 +17,7 @@ router.get('/admin/estudiantes/listar', verifyToken, requireRole('admin_red'), v
 router.delete('/admin/estudiantes/eliminar/:estudianteId', verifyToken, requireRole('admin_red'), validators.mongoIdParam('estudianteId'), validateResult, eliminarEstudianteDeRed)
 
 // Admin Red:resolver reportes de publicaciones de su red
+router.get('/admin/red/reportes', verifyToken, requireRole('admin_red'), listarReportesAdminRed)
 router.patch('/admin/reportes/:id/resolver', verifyToken, requireRole('admin_red'), validators.mongoIdParam('id'), validateResult, resolverReportePublicacionAdmin)
 router.delete('/admin/reportes/:subtype/:id', verifyToken, requireRole('admin_red'), validators.deleteReporteValidator, validateResult, deleteReportePorId)
 router.delete('/admin/solicitudes/rehabilitar/:id', verifyToken, requireRole('admin_red'), validators.mongoIdParam('id'), validateResult, deleteSolicitudRehabilitarByAdmin)

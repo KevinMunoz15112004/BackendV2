@@ -3,13 +3,13 @@ import SolicitudUnificada from '../models/Solicitudes.js'
 import RedComunitaria from '../models/RedComunitaria.js'
 import Publicacion from '../models/Publicaciones.js'
 import Estudiante from '../models/Estudiantes.js'
-import { Articulo }  from '../models/Articulos.js'
+import { Articulo } from '../models/Articulos.js'
 import AdminRed from '../models/adminRedes.js'
 import Comentario from '../models/Comentarios.js'
 import { crearNotificacion } from '../helpers/notificaciones.js'
 import { triggerUserChannel } from '../config/pusher.js'
 import { mapEstadoFromBody, listarReportesPorSubtype, listarSolicitudesPorSubtype, populateReporte, populateSolicitud, reportePopulateMap, reporteSelectMap, solicitudPopulateMap, solicitudSelectMap } from '../helpers/reportHelpers.js'
-import { isGlobalRed } from '../helpers/globalRed.js'
+import { isGlobalRed, getGlobalIds } from '../helpers/globalRed.js'
 
 // Create report: publication
 const crearReportePublicacion = async (req, res) => {
@@ -135,7 +135,16 @@ const listarReportes = async (req, res) => {
   const { estado } = req.query
 
   try {
-    const q = listarReportesPorSubtype(subtype, reportePopulateMap[subtype], estado)
+    let filtroExtra = {}
+    if (subtype === 'publicacion') {
+      const globalIds = await getGlobalIds()
+      filtroExtra = { 'meta.redId': { $in: globalIds } }
+    }
+    if (subtype === 'publicacion' || subtype === 'articulo') {
+      const globalIds = await getGlobalIds()
+      filtroExtra = { 'meta.redId': { $in: globalIds } }
+    }
+    const q = listarReportesPorSubtype(subtype, reportePopulateMap[subtype], estado, filtroExtra)
     q.select(reporteSelectMap[subtype] || '-__v')
     const reportes = await q.exec()
     return res.status(200).json({ reportes })

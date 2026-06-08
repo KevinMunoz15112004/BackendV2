@@ -4,7 +4,7 @@ const articuloSchema = new mongoose.Schema({
   titulo: String,
   descripcion: String,
   tipoContenido: { type: String, enum: ['texto', 'imagen'], default: 'texto' },
-  precio: { type: mongoose.Schema.Types.Mixed }, // number or string like 'Gratis'
+  precio: { type: mongoose.Schema.Types.Mixed }, 
   mediaUrls: {
     type: [String],
     default: []

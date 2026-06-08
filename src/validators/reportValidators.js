@@ -11,6 +11,7 @@ const ESTADOS_VALIDOS = [
 
 const SUBTYPES_VALIDOS = [
   'publicacion',
+  'articulo',
   'usuario',
   'red',
   'app'

@@ -10,8 +10,8 @@ export const mapEstadoFromBody = (valor) => {
   return null
 }
 
-export const listarReportesPorSubtype = (subtype, populate = [], estado = null) => {
-  const filtro = { subtype }
+export const listarReportesPorSubtype = (subtype, populate = [], estado = null, filtroExtra = {}) => {
+  const filtro = { subtype, ...filtroExtra }
   if (estado) filtro.estado = estado
 
   const q = ReporteUnificado.find(filtro).sort({ createdAt: -1 }).populate('reporterId', 'nombre apellido fotoPerfil email')
@@ -68,14 +68,21 @@ export const reportePopulateMap = {
   usuario: [{ path: 'meta.reportadoUsuarioId', select: 'nombre apellido fotoPerfil email' }],
   red: [{ path: 'meta.redId', select: 'nombre fotoPerfil esVerificada' }],
   app: [],
-  publicacion: [{ path: 'meta.publicacionId', select: 'titulo contenido tipoContenido mediaUrls' }]
+  publicacion: [{ path: 'meta.publicacionId', select: 'titulo contenido tipoContenido mediaUrls' },
+    { path: 'meta.redId', select: 'nombre descripcion' }
+  ],
+   articulo: [
+    { path: 'meta.articuloId', select: 'titulo descripcion tipoContenido mediaUrls' },
+    { path: 'meta.redId', select: 'nombre descripcion' }
+  ]
 }
 
 export const reporteSelectMap = {
   usuario: '-meta.articuloId -meta.publicacionId -__v',
   red: '-meta.articuloId -meta.publicacionId -meta.reportadoUsuarioId -__v',
   app: '-meta.articuloId -meta.publicacionId -meta.reportadoUsuarioId -meta.redId -__v',
-  publicacion: '-meta.articuloId -meta.reportadoUsuarioId -__v'
+  publicacion: '-meta.articuloId -meta.reportadoUsuarioId -__v',
+  articulo: '-meta.publicacionId -meta.reportadoUsuarioId -__v'
 }
 
 export const solicitudPopulateMap = {
@@ -94,14 +101,4 @@ export const solicitudSelectMap = {
   habilitar_usuario: '-meta.redId -meta.solicitarVerificada -meta.solicitarOficial -meta.nombreRed -meta.fechaCreacionRed -meta.cantidadMiembros -meta.dependencia -meta.dependenciaPersonalizada -meta.cargo -meta.cargoPersonalizado -meta.correoInstitucional -meta.justificacion -__v',
   revocar_admin_red: '-meta.solicitarVerificada -meta.solicitarOficial -meta.nombreRed -meta.fechaCreacionRed -meta.cantidadMiembros -meta.dependencia -meta.dependenciaPersonalizada -meta.cargo -meta.cargoPersonalizado -meta.correoInstitucional -meta.justificacion -__v',
   postular_admin_red: '-meta.solicitarVerificada -meta.solicitarOficial -meta.nombreRed -meta.fechaCreacionRed -meta.cantidadMiembros -meta.dependencia -meta.dependenciaPersonalizada -meta.cargo -meta.cargoPersonalizado -meta.correoInstitucional -meta.justificacion -__v',
-}
-
-export const listarReportesGlobal = (filtro, populate = []) => {
-  const q = ReporteUnificado.find(filtro)
-    .sort({ createdAt: -1 })
-    .populate('reporterId', 'nombre apellido fotoPerfil email')
-
-  populate.forEach(p => q.populate(p))
-
-  return q
 }

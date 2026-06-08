@@ -5,7 +5,7 @@ import RedComunitaria from '../models/RedComunitaria.js'
 import Publicacion from '../models/Publicaciones.js'
 import Comentario from '../models/Comentarios.js'
 import ReporteUnificado from '../models/Reportes.js'
-import { mapEstadoFromBody, populateReporte, listarReportesGlobal } from '../helpers/reportHelpers.js'
+import { mapEstadoFromBody, populateReporte } from '../helpers/reportHelpers.js'
 import { Articulo } from '../models/Articulos.js'
 import { isGlobalRed } from '../helpers/globalRed.js'
 import { v2 as cloudinary } from 'cloudinary'
@@ -479,38 +479,6 @@ const eliminarRed = async (req, res) => {
   }
 }
 
-const listarReportesRedGlobalSuperAdmin = async (req, res) => {
-  try {
-    const { estado } = req.query
-    const { subtype } = req.params
-
-    const subtypeFiltro = subtype ?? { $in: ['publicacion', 'articulo'] }
-
-    const redGlobal = await RedComunitaria.findOne({ esGlobal: true })
-    if (!redGlobal) return res.status(404).json({ msg: 'Red global no encontrada' })
-
-    const filtro = {
-      subtype: subtypeFiltro,
-      'meta.redId': redGlobal._id,
-      ...(estado && { estado })
-    }
-
-    const reportes = await listarReportesGlobal(
-      filtro,
-      [
-        { path: 'meta.publicacionId', select: 'titulo contenido tipoContenido mediaUrls' },
-        { path: 'meta.articuloId', select: 'titulo descripcion tipoContenido mediaUrls' },
-        { path: 'meta.redId', select: 'nombre descripcion' }
-      ]
-    )
-
-    return res.status(200).json({ reportes })
-  } catch (error) {
-    console.error(error)
-    return res.status(500).json({ msg: 'Error en el servidor' })
-  }
-}
-
 const resolverReporteRedGlobalSuperAdmin = async (req, res) => {
   try {
     const { id } = req.params
@@ -595,6 +563,5 @@ export {
   obtenerRedes,
   obtenerRedPorId,
   eliminarRed,
-  listarReportesRedGlobalSuperAdmin,
   resolverReporteRedGlobalSuperAdmin
 }
