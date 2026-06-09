@@ -170,6 +170,8 @@ const resolverReporteUsuario = async (req, res) => {
     if (mapped === 'rechazado') {
       reporte.estado = 'rechazado'
       if (respuesta) reporte.respuesta = respuesta
+      reporte.resolvedBy = req.user._id   
+      reporte.resolvedByModel = 'SuperAdmin' 
       await reporte.save()
       const reportePop = await populateReporte(reporte._id, 'usuario')
       return res.status(200).json({ msg: 'Reporte rechazado', reporte: reportePop })
@@ -178,6 +180,8 @@ const resolverReporteUsuario = async (req, res) => {
     // Resuelto -> suspender usuario
     reporte.estado = 'resuelto'
     if (respuesta) reporte.respuesta = respuesta
+    reporte.resolvedBy = req.user._id 
+    reporte.resolvedByModel = 'SuperAdmin' 
     await reporte.save()
 
     const usuario = await Estudiante.findById(reporte.meta.reportadoUsuarioId)
@@ -237,6 +241,8 @@ const resolverReporteRed = async (req, res) => {
     if (mapped === 'rechazado') {
       reporte.estado = 'rechazado'
       if (respuesta) reporte.respuesta = respuesta
+      reporte.resolvedBy = req.user._id  
+      reporte.resolvedByModel = 'SuperAdmin'
       await reporte.save()
       const reportePop = await populateReporte(reporte._id, 'red')
       return res.status(200).json({ msg: 'Reporte rechazado', reporte: reportePop })
@@ -245,6 +251,8 @@ const resolverReporteRed = async (req, res) => {
     // Resuelto: deshabilitar la red
     reporte.estado = 'resuelto'
     if (respuesta) reporte.respuesta = respuesta
+    reporte.resolvedBy = req.user._id 
+    reporte.resolvedByModel = 'SuperAdmin'
     await reporte.save()
 
     const red = await RedComunitaria.findById(reporte.meta.redId)
@@ -280,6 +288,8 @@ const resolverReporteApp = async (req, res) => {
     if (mapped === 'rechazado') {
       reporte.estado = 'rechazado'
       if (respuesta) reporte.respuesta = respuesta
+      reporte.resolvedBy = req.user._id  
+      reporte.resolvedByModel = 'SuperAdmin'
       await reporte.save()
       const reportePop = await populateReporte(reporte._id, 'app')
       return res.status(200).json({ msg: 'Reporte rechazado', reporte: reportePop })
@@ -287,6 +297,8 @@ const resolverReporteApp = async (req, res) => {
 
     reporte.estado = 'resuelto'
     if (respuesta) reporte.respuesta = respuesta
+    reporte.resolvedBy = req.user._id 
+    reporte.resolvedByModel = 'SuperAdmin'
     await reporte.save()
 
     const reportePop = await populateReporte(reporte._id, 'app')
@@ -318,6 +330,8 @@ const resolverReportePublicacionAdmin = async (req, res) => {
     if (mapped === 'rechazado') {
       reporte.estado = 'rechazado'
       if (respuesta) reporte.respuesta = respuesta
+      reporte.resolvedBy = req.user._id 
+      reporte.resolvedByModel = 'Estudiante'
       await reporte.save()
       const reportePop = await populateReporte(reporte._id, 'publicacion')
       return res.status(200).json({ msg: 'Reporte rechazado', reporte: reportePop })
@@ -326,6 +340,8 @@ const resolverReportePublicacionAdmin = async (req, res) => {
     // Resuelto: eliminar publicación con cascada
     reporte.estado = 'resuelto'
     if (respuesta) reporte.respuesta = respuesta
+    reporte.resolvedBy = req.user._id 
+    reporte.resolvedByModel = 'Estudiante'
     await reporte.save()
 
     const publicacion = await Publicacion.findById(reporte.meta.publicacionId)
@@ -668,6 +684,7 @@ const resolverSolicitudRehabilitar = async (req, res) => {
     if (accion === 'Rechazar') {
       solicitud.estado = 'rechazada'
       if (respuesta) solicitud.respuesta = respuesta
+      solicitud.resolvedBy = req.user._id
       await solicitud.save()
       const pop = await populateSolicitud(solicitud._id, 'rehabilitar_red')
       return res.status(200).json({ msg: 'Solicitud rechazada', solicitud: pop })
@@ -676,6 +693,7 @@ const resolverSolicitudRehabilitar = async (req, res) => {
     await red.save()
     solicitud.estado = 'aprobada'
     if (respuesta) solicitud.respuesta = respuesta
+    solicitud.resolvedBy = req.user._id
     await solicitud.save()
     const pop = await populateSolicitud(solicitud._id, 'rehabilitar_red')
     return res.status(200).json({ msg: 'Solicitud aprobada. Red reactivada', solicitud: pop })
@@ -699,16 +717,18 @@ const resolverSolicitudHabilitarUsuario = async (req, res) => {
     if (accion === 'Rechazar') {
       solicitud.estado = 'rechazada'
       if (respuesta) solicitud.respuesta = respuesta
+      solicitud.resolvedBy = req.user._id 
       await solicitud.save()
-      const pop = await SolicitudUnificada.findById(solicitud._id).populate('solicitante', 'nombre apellido fotoPerfil email suspendido')
+      const pop = await SolicitudUnificada.findById(solicitud._id).populate('solicitante', 'nombre apellido fotoPerfil email suspendido').populate('resolvedBy', 'nombre apellido rol')
       return res.status(200).json({ msg: 'Solicitud rechazada', solicitud: pop })
     }
     estudiante.suspendido = false
     await estudiante.save()
     solicitud.estado = 'aprobada'
     if (respuesta) solicitud.respuesta = respuesta
+    solicitud.resolvedBy = req.user._id 
     await solicitud.save()
-    const pop = await SolicitudUnificada.findById(solicitud._id).populate('solicitante', 'nombre apellido fotoPerfil email suspendido')
+    const pop = await SolicitudUnificada.findById(solicitud._id).populate('solicitante', 'nombre apellido fotoPerfil email suspendido').populate('resolvedBy', 'nombre apellido rol')
     return res.status(200).json({ msg: 'Solicitud aprobada. Usuario habilitado', solicitud: pop })
   } catch (error) {
     console.error(error)
@@ -732,6 +752,7 @@ const resolverSolicitudVerificacion = async (req, res) => {
     if (estado === 'Rechazada') {
       solicitud.estado = 'rechazada'
       if (respuesta) solicitud.respuesta = respuesta
+      solicitud.resolvedBy = req.user._id 
       await solicitud.save()
       const pop = await populateSolicitud(solicitud._id, 'verificacion')
       return res.status(200).json({ msg: 'Solicitud rechazada', solicitud: pop })
@@ -745,6 +766,7 @@ const resolverSolicitudVerificacion = async (req, res) => {
 
     solicitud.estado = 'aprobada'
     if (respuesta) solicitud.respuesta = respuesta
+    solicitud.resolvedBy = req.user._id 
     await solicitud.save()
 
     const pop = await populateSolicitud(solicitud._id, 'verificacion')
@@ -770,6 +792,7 @@ const resolverSolicitudOficializacion = async (req, res) => {
     if (estado === 'Rechazada') {
       solicitud.estado = 'rechazada'
       if (respuesta) solicitud.respuesta = respuesta
+      solicitud.resolvedBy = req.user._id
       await solicitud.save()
       const pop = await populateSolicitud(solicitud._id, 'oficializacion')
       return res.status(200).json({ msg: 'Solicitud rechazada', solicitud: pop })
@@ -783,6 +806,7 @@ const resolverSolicitudOficializacion = async (req, res) => {
 
     solicitud.estado = 'aprobada'
     if (respuesta) solicitud.respuesta = respuesta
+    solicitud.resolvedBy = req.user._id
     await solicitud.save()
 
     const pop = await populateSolicitud(solicitud._id, 'oficializacion')
@@ -852,6 +876,7 @@ const resolverSolicitudRevocarAdminRed = async (req, res) => {
     if (accion === 'Rechazar') {
       solicitud.estado = 'rechazada'
       if (respuesta) solicitud.respuesta = respuesta
+      solicitud.resolvedBy = req.user._id
       await solicitud.save()
       const pop = await populateSolicitud(solicitud._id, 'revocar_admin_red')
       return res.status(200).json({ msg: 'Solicitud rechazada', solicitud: pop })
@@ -882,6 +907,7 @@ const resolverSolicitudRevocarAdminRed = async (req, res) => {
     // Resolver la solicitud
     solicitud.estado = 'aprobada'
     if (respuesta) solicitud.respuesta = respuesta
+    solicitud.resolvedBy = req.user._id
     await solicitud.save()
 
     // Notificar al usuario
@@ -985,6 +1011,7 @@ const resolverSolicitudPostularAdminRed = async (req, res) => {
     if (accion === 'Rechazar') {
       solicitud.estado = 'rechazada'
       if (respuesta) solicitud.respuesta = respuesta
+      solicitud.resolvedBy = req.user._id
       await solicitud.save()
       const pop = await populateSolicitud(solicitud._id, 'postular_admin_red')
       return res.status(200).json({ msg: 'Postulación rechazada', solicitud: pop })
@@ -1049,6 +1076,7 @@ const resolverSolicitudPostularAdminRed = async (req, res) => {
     // Resolver la solicitud
     solicitud.estado = 'aprobada'
     if (respuesta) solicitud.respuesta = respuesta
+    solicitud.resolvedBy = req.user._id
     await solicitud.save()
 
     // Notificar al nuevo admin

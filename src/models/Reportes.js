@@ -7,6 +7,8 @@ const reportesSchema = new Schema({
   reporterId: { type: Schema.Types.ObjectId, ref: 'Estudiante', default: null },
   estado: { type: String, enum: ['pendiente', 'resuelto', 'rechazado'], default: 'pendiente' },
   respuesta: { type: String, default: null },
+  resolvedBy: { type: Schema.Types.ObjectId, refPath: 'resolvedByModel', default: null }, 
+  resolvedByModel: { type: String, enum: ['SuperAdmin', 'Estudiante'], default: null },  
   meta: {
     publicacionId: { type: Schema.Types.ObjectId, ref: 'Publicacion', default: null },
     articuloId: { type: Schema.Types.ObjectId, ref: 'Articulo', default: null },

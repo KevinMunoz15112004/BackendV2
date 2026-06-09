@@ -6,6 +6,7 @@ const solicitudesSchema = new Schema({
   descripcion: { type: String, trim: true, default: '' },
   estado: { type: String, enum: ['pendiente', 'aprobada', 'rechazada'], default: 'pendiente' },
   respuesta: { type: String, default: null },
+  resolvedBy: { type: Schema.Types.ObjectId, ref: 'SuperAdmin', default: null },
   meta: {
     redId: { type: Schema.Types.ObjectId, ref: 'RedComunitaria', default: null },
     solicitarVerificada: { type: Boolean, default: false },

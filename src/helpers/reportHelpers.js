@@ -46,6 +46,7 @@ export const populateReporte = (id, subtype) => {
     .populate('meta.reportadoUsuarioId', 'nombre apellido fotoPerfil email')
     .populate('meta.redId', 'nombre fotoPerfil esVerificada deshabilitada')
     .populate('reporterId', 'nombre apellido fotoPerfil email')
+    .populate('resolvedBy', 'nombre apellido rol roles')
 }
 
 export const populateSolicitud = (id, subtype) => {
@@ -62,6 +63,7 @@ export const populateSolicitud = (id, subtype) => {
     .select(excludeMap[subtype] || '-__v')
     .populate('meta.redId', 'nombre deshabilitada esVerificada esOficial')
     .populate('solicitante', 'nombre apellido fotoPerfil email')
+    .populate('resolvedBy', 'nombre apellido rol')
 }
 
 export const reportePopulateMap = {

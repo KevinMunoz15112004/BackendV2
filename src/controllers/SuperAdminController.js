@@ -237,151 +237,6 @@ const obtenerEstudiantePorId = async (req, res) => {
   }
 }
 
-const actualizarEstudiante = async (req, res) => {
-  const id = req.params.id;
-
-  try {
-    const estudiante = await Estudiante.findById(id);
-    if (!estudiante) {
-      return res.status(404).json({ msg: 'Estudiante no encontrado' });
-    }
-
-    const camposActualizados = {};
-    for (const [key, value] of Object.entries(req.body)) {
-      if (value && value.toString().trim() !== '') {
-        camposActualizados[key] = value;
-      }
-    }
-
-    // Determinar si se solicita promover a Admin_Red
-    const nuevoRolSolicitado = req.body.rol || (req.body.roles && (Array.isArray(req.body.roles) ? req.body.roles[0] : req.body.roles))
-    const cambiandoARolAdmin = !estudiante.roles.includes('admin_red') && (nuevoRolSolicitado === 'Admin_Red' || (Array.isArray(req.body.roles) && req.body.roles.includes('admin_red')))
-
-    // Solo si el estudiante sigue como Estudiante, puede actualizar redComunitaria
-    if (req.body.redComunitaria && !cambiandoARolAdmin) {
-      const nuevaRedId = req.body.redComunitaria;
-
-      const redNueva = await RedComunitaria.findById(nuevaRedId);
-      if (!redNueva) {
-        return res.status(404).json({ msg: 'La nueva red comunitaria no existe' });
-      }
-
-      for (const redIdActual of estudiante.redComunitaria) {
-        const redAnterior = await RedComunitaria.findById(redIdActual);
-        if (redAnterior) {
-          redAnterior.miembros = redAnterior.miembros.filter(id => !id.equals(estudiante._id));
-          redAnterior.cantidadMiembros = redAnterior.miembros.length;
-          await redAnterior.save();
-        }
-      }
-
-      if (!redNueva.miembros.includes(estudiante._id)) {
-        redNueva.miembros.push(estudiante._id);
-        redNueva.cantidadMiembros = redNueva.miembros.length;
-        await redNueva.save();
-      }
-
-      camposActualizados.redComunitaria = nuevaRedId;
-    }
-
-    if (Object.keys(camposActualizados).length === 0) {
-      return res.status(400).json({ msg: 'Debes llenar al menos un campo a actualizar' });
-    }
-
-    // Determinar el rol objetivo: soporta legacy `rol` y nuevo `roles`
-    let nuevoRol
-    if (camposActualizados.rol) {
-      nuevoRol = camposActualizados.rol
-    } else if (Array.isArray(camposActualizados.roles)) {
-      nuevoRol = camposActualizados.roles.includes('admin_red') ? 'Admin_Red' : 'Estudiante'
-    } else {
-      nuevoRol = estudiante.roles.includes('admin_red') ? 'Admin_Red' : 'Estudiante'
-    }
-
-    if (!['Estudiante', 'Admin_Red'].includes(nuevoRol)) {
-      return res.status(400).json({ msg: 'Rol inválido. Solo se permite "Estudiante" o "Admin_Red"' });
-    }
-
-    // Convertir a Admin_Red
-    if (!estudiante.roles.includes('admin_red') && (nuevoRol === 'Admin_Red' || (Array.isArray(req.body.roles) && req.body.roles.includes('admin_red')))) {
-      const redComunitaria = req.body.redComunitaria;
-
-      if (!redComunitaria) {
-        return res.status(400).json({ msg: 'Debes especificar la red comunitaria para el nuevo Admin_Red' });
-      }
-
-      const red = await RedComunitaria.findById(redComunitaria);
-      if (!red) {
-        return res.status(404).json({ msg: 'La red comunitaria especificada no existe' });
-      }
-
-      if (!red.miembros.includes(estudiante._id)) {
-        red.miembros.push(estudiante._id);
-        red.cantidadMiembros = red.miembros.length;
-        await red.save();
-      }
-
-      const nuevoEmail = estudiante.email;
-
-      // Crear relación AdminRed (permiso sobre la red) y añadir rol al estudiante
-      const existingRelation = await AdminRed.findOne({ usuarioId: estudiante._id, redId: redComunitaria })
-      if (existingRelation) {
-        return res.status(400).json({ msg: 'Ya existe una relación de admin para ese usuario y red' })
-      }
-
-      const rel = new AdminRed({ usuarioId: estudiante._id, redId: redComunitaria, estado: 'activo', fechaAprobacion: new Date() })
-      await rel.save()
-
-      // Añadir rol admin_red al estudiante
-      await estudiante.addRole('admin_red')
-
-      await enviarCorreoNuevoAdmin(estudiante.email, nuevoEmail);
-
-      delete camposActualizados.redComunitaria;
-    }
-
-    // Convertir a Estudiante
-    if (estudiante.roles.includes('admin_red') && (nuevoRol === 'Estudiante' || (Array.isArray(req.body.roles) && !req.body.roles.includes('admin_red')))) {
-      // Revocar rol admin_red y eliminar relaciones activas
-      await AdminRed.updateMany({ usuarioId: estudiante._id, estado: { $in: ['activo', 'pendiente'] } }, { $set: { estado: 'revocado' } })
-      await estudiante.removeRole('admin_red')
-
-      if (estudiante.redComunitaria) {
-        // limpiar miembros de redes si corresponde
-        for (const redId of estudiante.redComunitaria) {
-          const red = await RedComunitaria.findById(redId)
-          if (red && red.miembros.includes(estudiante._id)) {
-            red.miembros = red.miembros.filter(idMiembro => !idMiembro.equals(estudiante._id))
-            red.cantidadMiembros = red.miembros.length
-            await red.save()
-          }
-        }
-
-        if (!camposActualizados.redComunitaria) camposActualizados.redComunitaria = []
-      }
-    }
-
-    // Encriptar nueva contraseña si se envía
-    if (camposActualizados.password) {
-      camposActualizados.password = await estudiante.encrypPassword(camposActualizados.password);
-    }
-
-    // Eliminar el campo rol legacy para evitar modificarlo directamente en Estudiante
-    if (camposActualizados.rol) delete camposActualizados.rol;
-
-    const estudianteActualizado = await Estudiante.findByIdAndUpdate(
-      id,
-      camposActualizados,
-      { new: true }
-    );
-
-    res.json({ msg: 'Datos actualizados correctamente', estudiante: estudianteActualizado });
-
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
 //Controladores para la gestión de redes comunitarias
 const obtenerRedes = async (req, res) => {
   try {
@@ -485,6 +340,8 @@ const resolverReporteRedGlobalSuperAdmin = async (req, res) => {
     const { estado, respuesta } = req.body
 
     const mapped = mapEstadoFromBody(estado)
+    if (!mapped || !['resuelto', 'rechazado'].includes(mapped)) 
+      return res.status(400).json({ msg: 'Estado inválido. Solo se acepta "Resuelta" o "Rechazada"' })
 
     const redGlobal = await RedComunitaria.findOne({ esGlobal: true })
     if (!redGlobal) return res.status(404).json({ msg: 'Red global no encontrada' })
@@ -496,14 +353,15 @@ const resolverReporteRedGlobalSuperAdmin = async (req, res) => {
     if (String(reporte.meta.redId) !== String(redGlobal._id))
       return res.status(403).json({ msg: 'Este reporte no pertenece a la red global' })
 
-    if (reporte.estado === 'resuelto')
-      return res.status(400).json({ msg: 'El reporte ya fue resuelto' })
-
-    reporte.estado = mapped
-    if (respuesta) reporte.respuesta = respuesta
-    await reporte.save()
+    if (['resuelto', 'rechazado'].includes(reporte.estado))
+      return res.status(400).json({ msg: 'El reporte ya fue resuelto o rechazado' })
 
     if (mapped === 'rechazado') {
+      reporte.estado = 'rechazado'
+      if (respuesta) reporte.respuesta = respuesta
+      reporte.resolvedBy = req.user._id  
+      reporte.resolvedByModel = 'SuperAdmin' 
+      await reporte.save()
       const reportePop = await populateReporte(reporte._id, reporte.subtype)
       return res.status(200).json({ msg: 'Reporte rechazado', reporte: reportePop })
     }
@@ -512,6 +370,11 @@ const resolverReporteRedGlobalSuperAdmin = async (req, res) => {
     if (reporte.subtype === 'publicacion') {
       const publicacion = await Publicacion.findById(reporte.meta.publicacionId)
       if (!publicacion) {
+        reporte.estado = 'resuelto'
+        if (respuesta) reporte.respuesta = respuesta
+        reporte.resolvedBy = req.user._id 
+        reporte.resolvedByModel = 'SuperAdmin' 
+        await reporte.save()
         const reportePop = await populateReporte(reporte._id, reporte.subtype)
         return res.status(200).json({ msg: 'Reporte resuelto. La publicación no existe (posible eliminación previa)', reporte: reportePop })
       }
@@ -527,6 +390,11 @@ const resolverReporteRedGlobalSuperAdmin = async (req, res) => {
     if (reporte.subtype === 'articulo') {
       const articulo = await Articulo.findById(reporte.meta.articuloId)
       if (!articulo) {
+        reporte.estado = 'resuelto'
+        if (respuesta) reporte.respuesta = respuesta
+        reporte.resolvedBy = req.user._id  
+        reporte.resolvedByModel = 'SuperAdmin'
+        await reporte.save()
         const reportePop = await populateReporte(reporte._id, reporte.subtype)
         return res.status(200).json({ msg: 'Reporte resuelto. El artículo no existe (posible eliminación previa)', reporte: reportePop })
       }
@@ -538,6 +406,12 @@ const resolverReporteRedGlobalSuperAdmin = async (req, res) => {
       )
       await Articulo.findByIdAndDelete(articulo._id)
     }
+
+    reporte.estado = 'resuelto'
+    if (respuesta) reporte.respuesta = respuesta
+    reporte.resolvedBy = req.user._id 
+    reporte.resolvedByModel = 'SuperAdmin' 
+    await reporte.save()
 
     const reportePop = await populateReporte(reporte._id, reporte.subtype)
     return res.status(200).json({ msg: 'Reporte resuelto y contenido eliminado', reporte: reportePop })
@@ -559,7 +433,6 @@ export {
   actualizarPassword,
   obtenerEstudiantes,
   obtenerEstudiantePorId,
-  actualizarEstudiante,
   obtenerRedes,
   obtenerRedPorId,
   eliminarRed,
