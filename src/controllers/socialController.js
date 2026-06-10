@@ -10,6 +10,7 @@ import { crearNotificacion } from '../helpers/notificaciones.js'
 import { _resolvePostDoc } from '../helpers/postResolver.js'
 import { triggerUserChannel } from '../config/pusher.js'
 import { sendMailRedAprobada, sendMailRedRechazada } from '../config/nodemailer.js'
+import { aprobarRed, rechazarRed } from '../services/redService.js'
 
 // Controladores para funcionalidades sociales
 
@@ -573,154 +574,26 @@ const resolverAprobacionRed = async (req, res) => {
     if (!red) return res.status(404).json({ msg: 'Red no encontrada' })
 
     if (accion === 'aprobar') {
-      // Validar estado previo
       if (red.estadoAprobacion && red.estadoAprobacion !== 'pendiente') {
         return res.status(400).json({ msg: 'La red no está en estado pendiente' })
       }
 
-      // Encontrar al usuario creador (administrador)
-      const userId = red.administrador
-      if (!userId) return res.status(400).json({ msg: 'La red no tiene asociado un creador' })
-
-      const user = await Estudiante.findById(userId)
-      if (!user) return res.status(404).json({ msg: 'Usuario creador no encontrado' })
-
-      // Asegurar rol 'admin_red'
-      if (!Array.isArray(user.roles)) user.roles = []
-      if (!user.roles.includes('admin_red')) {
-        user.roles.push('admin_red')
-        await user.save()
-      }
-
-      // Añadir al usuario como miembro de la red si no está
-      if (!Array.isArray(user.redComunitaria)) user.redComunitaria = []
-      if (!user.redComunitaria.some(rid => rid.toString() === red._id.toString())) {
-        user.redComunitaria.push(red._id)
-        await user.save()
-      }
-
-      // Crear relación en adminRedes si no existe
-      const existeRel = await AdminRed.findOne({ usuarioId: user._id, redId: red._id })
-      if (!existeRel) {
-        await AdminRed.create({
-          usuarioId: user._id,
-          redId: red._id,
-          estado: 'activo',
-          permisos: ['gestion_publicaciones', 'gestionar_miembros'],
-          fechaAprobacion: new Date()
-        })
-      }
-
-      // Actualizar red: marcar aprobada y asegurarse que el creador esté en miembros
-      red.estadoAprobacion = 'aprobada'
-      if (!Array.isArray(red.miembros)) red.miembros = []
-      if (!red.miembros.some(mid => mid.toString() === user._id.toString())) {
-        red.miembros.push(user._id)
-      }
-      red.cantidadMiembros = red.miembros.length
-      await red.save()
-
-      // Notificar al creador
-      const emisorIdVal = req.user?._id || null;
-      if (!emisorIdVal || user._id.toString() !== emisorIdVal.toString()) {
-        const notificacion = await crearNotificacion({
-          usuarioId: user._id,
-          emisorId: emisorIdVal,
-          tipo: 'mensaje',
-          mensaje: 'Tu solicitud de creación de red fue aprobada'
-        });
-        
-        let emisorData = null;
-        if (emisorIdVal) {
-          emisorData = await Estudiante.findById(emisorIdVal).select('nombre apellido username fotoPerfil').lean();
-        }
-
-        await triggerUserChannel(user._id.toString(), 'nueva_notificacion', {
-          _id: notificacion._id.toString(),
-          tipo: notificacion.tipo,
-          emisorSnap: emisorData,
-          mensaje: notificacion.mensaje,
-          leida: false,
-          createdAt: notificacion.createdAt,
-          updatedAt: notificacion.updatedAt
-        });
-      }
-
       try {
-        if (user.email) {
-          await sendMailRedAprobada(user.email, red.nombre)
-        }
+        await aprobarRed(red, req.user?._id || null)
       } catch (e) {
-        console.error('Error al enviar email de red aprobada:', e)
+        return res.status(400).json({ msg: e.message })
       }
 
       return res.status(200).json({ msg: 'Red aprobada', red })
     }
 
     if (accion === 'rechazar') {
-      // Al rechazar, eliminamos la red y notificamos al creador
-      const creadoPorId = red.administrador
-      // Limpiar referencias en estudiantes que tenían esta red antes de eliminarla
-      await Estudiante.updateMany(
-        { redComunitaria: red._id },
-        { $pull: { redComunitaria: red._id } }
-      )
-
-      // Buscar publicaciones de la red y limpiarlas (comentarios y guardados)
-      const publicaciones = await Publicacion.find({ comunidadId: red._id }).select('_id').lean()
-      const postIds = (publicaciones || []).map(p => p._id).filter(Boolean)
-
-      if (postIds.length > 0) {
-        await Comentario.deleteMany({ postId: { $in: postIds } })
-        await Estudiante.updateMany(
-          { publicacionesGuardadas: { $in: postIds } },
-          { $pull: { publicacionesGuardadas: { $in: postIds } } }
-        )
-        await Publicacion.deleteMany({ _id: { $in: postIds } })
-      }
-
-      // usar `findByIdAndDelete` para eliminar de forma segura.
-      await RedComunitaria.findByIdAndDelete(red._id)
-
-      if (creadoPorId) {
-        const emisorIdVal = req.user?._id || null;
-        if (!emisorIdVal || creadoPorId.toString() !== emisorIdVal.toString()) {
-          const notificacion = await crearNotificacion({
-            usuarioId: creadoPorId,
-            emisorId: emisorIdVal,
-            tipo: 'mensaje',
-            mensaje: 'Tu solicitud de creación de red fue rechazada'
-          });
-          
-          let emisorData = null;
-          if (emisorIdVal) {
-            emisorData = await Estudiante.findById(emisorIdVal).select('nombre apellido username fotoPerfil').lean();
-          }
-
-          await triggerUserChannel(creadoPorId.toString(), 'nueva_notificacion', {
-            _id: notificacion._id.toString(),
-            tipo: notificacion.tipo,
-            emisorSnap: emisorData,
-            mensaje: notificacion.mensaje,
-            leida: false,
-            createdAt: notificacion.createdAt,
-            updatedAt: notificacion.updatedAt
-          });
-        }
-
-        try {
-          const creador = await Estudiante.findById(creadoPorId)
-          if (creador && creador.email) {
-            await sendMailRedRechazada(creador.email, red.nombre)
-          }
-        } catch (e) {
-          console.error('Error al enviar email de red rechazada:', e)
-        }
-      }
-
+      await rechazarRed(red, req.user?._id || null)
       return res.status(200).json({ msg: 'Red rechazada y eliminada' })
     }
+
     return res.status(400).json({ msg: 'Acción no válida. Debe ser "aprobar" o "rechazar"' })
+
   } catch (error) {
     console.error('Error al resolver aprobación de red:', error)
     return res.status(500).json({ msg: 'Error en el servidor' })

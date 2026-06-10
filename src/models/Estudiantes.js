@@ -111,21 +111,6 @@ estudianteSchema.methods.crearToken = function () {
   return tokenGenerado;
 };
 
-// Agregar/Remover roles
-estudianteSchema.methods.addRole = async function (role) {
-  if (!this.roles.includes(role)) {
-    this.roles.push(role)
-    await this.save()
-  }
-}
-
-estudianteSchema.methods.removeRole = async function (role) {
-  if (this.roles.includes(role)) {
-    this.roles = this.roles.filter(r => r !== role)
-    await this.save()
-  }
-}
-
 // Normalizar email antes de guardar/actualizar (guardar en lowercase)
 estudianteSchema.pre('save', function(next) {
   if (this.email && typeof this.email === 'string') {
