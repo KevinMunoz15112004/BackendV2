@@ -1,6 +1,5 @@
 import Estudiante from '../models/Estudiantes.js'
 import jwt from 'jsonwebtoken'
-import bcrypt from 'bcryptjs'
 
 export const signToken = (user, context = 'mobile') => {
   const payload = { id: user._id, roles: user.roles, context }
@@ -10,12 +9,11 @@ export const signToken = (user, context = 'mobile') => {
 export const login = async (req, res) => {
   try {
     const { email, password, context = 'mobile' } = req.body
-    // Formato/presencia de email y password validado por validators en rutas
 
     const user = await Estudiante.findOne({ email })
     if (!user) return res.status(404).json({ msg: 'Usuario no registrado' })
 
-    const match = await bcrypt.compare(password, user.password || '')
+    const match = await user.matchPassword(password)
     if (!match) return res.status(401).json({ msg: 'Contraseña incorrecta' })
 
     if (user.suspendido) return res.status(403).json({ msg: 'Cuenta suspendida. Contacta al Super Administrador.' })

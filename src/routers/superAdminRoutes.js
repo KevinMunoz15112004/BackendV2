@@ -1,5 +1,5 @@
 import {Router} from 'express'
-import { comprobarTokenPassword, crearNuevoPassword, recuperarPassword, login, perfil, actualizarPerfil, actualizarAvatar, actualizarPassword, obtenerEstudiantes, obtenerEstudiantePorId, obtenerRedes, obtenerRedPorId, eliminarRed, resolverReporteRedGlobalSuperAdmin } 
+import { comprobarTokenPassword, crearNuevoPassword, recuperarPassword, login, perfil, actualizarPerfil, actualizarAvatar, actualizarPassword, obtenerRedes, obtenerRedPorId, eliminarRed, resolverReporteRedGlobalSuperAdmin } 
 from '../controllers/SuperAdminController.js'
 import { listarRedesPendientesAprobacion, resolverAprobacionRed } from '../controllers/socialController.js'
 import validators from '../validators/index.js'
@@ -32,10 +32,6 @@ router.get('/perfil-superadmin', autenticarToken, isSuperAdmin, perfil)
 router.patch('/actualizar-superadmin/', autenticarToken, isSuperAdmin, validators.actualizarPerfilValidator, validateResult, actualizarPerfil)
 router.patch('/perfil/avatar', autenticarToken, isSuperAdmin, actualizarAvatar)
 router.patch('/superadmin/actualizar-password/', autenticarToken, isSuperAdmin, validators.actualizarPasswordValidator, validateResult, actualizarPassword)
-
-//Rutas para la gestión de usuarios
-router.get('/estudiantes', autenticarToken, isSuperAdmin, obtenerEstudiantes)
-router.get('/estudiantes/:id', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validateResult, obtenerEstudiantePorId)
 
 //Rutas para la gestión de redes comunitarias
 router.get('/redes', autenticarToken, isSuperAdmin, obtenerRedes)
