@@ -523,7 +523,9 @@ const listarPublicacionesLiked = async (req, res) => {
 
     return res.status(200).json({
       likes: paginated,
-      liked: paginated
+      total: mapped.length,
+      page,
+      limit
     })
   } catch (error) {
     console.error('Error al listar publicaciones con like:', error)
