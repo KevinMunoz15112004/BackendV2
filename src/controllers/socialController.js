@@ -373,10 +373,13 @@ const guardarPublicacion = async (req, res) => {
     }
 
     const docId = resolved.doc._id
-    if (!estudiante.publicacionesGuardadas.some((postId) => postId.equals(docId))) {
-      estudiante.publicacionesGuardadas.push(docId)
-      await estudiante.save()
+
+    if (estudiante.publicacionesGuardadas.some((postId) => postId.equals(docId))) {
+      return res.status(409).json({ msg: 'La publicación ya está guardada' })
     }
+
+    estudiante.publicacionesGuardadas.push(docId)
+    await estudiante.save()
 
     return res.status(200).json({ msg: 'Publicación guardada correctamente' })
   } catch (error) {
@@ -393,6 +396,11 @@ const quitarGuardadoPublicacion = async (req, res) => {
     const estudiante = await Estudiante.findById(estudianteId)
     if (!estudiante) {
       return res.status(404).json({ msg: 'Estudiante no encontrado' })
+    }
+
+    const estaGuardada = estudiante.publicacionesGuardadas.some((postId) => postId.equals(id))
+    if (!estaGuardada) {
+      return res.status(404).json({ msg: 'La publicación no está en guardados' })
     }
 
     estudiante.publicacionesGuardadas = estudiante.publicacionesGuardadas.filter((postId) => !postId.equals(id))
