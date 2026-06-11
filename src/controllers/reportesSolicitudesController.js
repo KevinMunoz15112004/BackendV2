@@ -383,11 +383,15 @@ const listarReportesAdminRed = async (req, res) => {
       'meta.redId': admin.redAsignada
     })
       .select('-meta.reportadoUsuarioId -meta.articuloId')
-      .populate('meta.publicacionId', 'titulo contenido tipoContenido mediaUrls')
+      .populate({
+        path: 'meta.publicacionId',
+        select: 'titulo contenido tipoContenido mediaUrls autorId timestamp',
+        populate: { path: 'autorId', select: 'nombre apellido fotoPerfil username' }
+      })
       .populate('reporterId', 'nombre apellido fotoPerfil email')
-      .populate('meta.redId', 'nombre descripcion')
-      .sort({ createdAt: -1 })
-
+      .populate('meta.redId', 'nombre descripcion fotoPerfil')
+      .sort({ createdAt: -1 })  
+          
     return res.status(200).json({ reportes })
 
   } catch (error) {

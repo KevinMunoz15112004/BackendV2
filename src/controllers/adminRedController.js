@@ -17,6 +17,15 @@ const perfilAdminRed = async (req, res) => {
       delete req.user.redAsignada
     }
 
+    // Calcular contadores
+    const publicacionesCount = await Publicacion.countDocuments({ autorId: req.user._id })
+    const articulosCount = await Articulo.countDocuments({ autorId: req.user._id })
+    const totalPublicaciones = publicacionesCount + articulosCount
+    
+    // Todas las redes a las que está unido (como miembro/estudiante) sin contar la global
+    const redesUnidas = await filterOutGlobalIds(req.user.redComunitaria || [])
+    const redesCount = redesUnidas.length
+
     const perfil = {
       _id: req.user._id,
       nombre: req.user.nombre,
@@ -26,7 +35,10 @@ const perfilAdminRed = async (req, res) => {
       username: req.user.username,
       biografia: req.user.biografia,
       roles: req.user.roles,
-      redAsignada: req.user.redAsignada || null
+      redAsignada: req.user.redAsignada || null,
+      publicaciones: totalPublicaciones,
+      redes: redesUnidas,
+      redesCount: redesCount
     }
 
     return res.status(200).json(perfil)
@@ -194,7 +206,10 @@ const actualizarRedComunitaria = async (req, res) => {
 
     await red.save()
 
-    res.status(200).json({ msg: 'Red comunitaria actualizada exitosamente', red })
+    const redLean = red.toObject()
+    redLean.publicacionesCount = await Publicacion.countDocuments({ comunidadId: red._id })
+
+    res.status(200).json({ msg: 'Red comunitaria actualizada exitosamente', red: redLean })
   } catch (error) {
     if (error.code === 11000 && error.keyPattern?.nombre) {
       return res.status(400).json({ msg: 'Ya existe una red comunitaria con ese nombre.' })

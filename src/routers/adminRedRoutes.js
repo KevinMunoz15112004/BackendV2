@@ -23,7 +23,7 @@ router.delete('/admin/reportes/:subtype/:id', verifyToken, requireRole('admin_re
 router.delete('/admin/solicitudes/rehabilitar/:id', verifyToken, requireRole('admin_red'), validators.mongoIdParam('id'), validateResult, deleteSolicitudRehabilitarByAdmin)
 
 // Admin Red:listar sus propias solicitudes
-router.get('/solicitudes', verifyToken, requireRole('admin_red'), validators.listarMisSolicitudesValidator, validateResult, listarMisSolicitudes)
+router.get('/solicitudes/:subtype', verifyToken, requireRole('admin_red'), validators.listarMisSolicitudesValidator, validateResult, listarMisSolicitudes)
 
 // Admin Red:crear solicitud para rehabilitar su red deshabilitada
 router.post('/solicitudes/rehabilitar', verifyToken, requireRole('admin_red'), validators.mongoIdBody('redId'), validators.description('descripcion', { optional: false }), validateResult, crearSolicitudRehabilitar)
