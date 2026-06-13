@@ -80,6 +80,26 @@ const USUARIO_TIPOS = [
   'Otro'
 ]
 
+const RED_TIPOS = [
+  'Contenido Inapropiado',
+  'Spam',
+  'Acoso o Bullying',
+  'Información falsa',
+  'Otro'
+]
+
+const reportRedValidator = [
+  body('tipo')
+    .exists().withMessage('El tipo es obligatorio').bail()
+    .isString().withMessage('Tipo inválido').bail()
+    .isIn(RED_TIPOS).withMessage('Tipo no permitido'),
+  body('descripcion')
+    .if(body('tipo').equals('Otro'))
+    .exists().withMessage('Descripcion obligatoria para "Otro"').bail()
+    .isString().withMessage('La descripcion debe ser texto').bail()
+    .trim().notEmpty().withMessage('La descripcion no puede estar vacía')
+]
+
 const listarReportesValidator = [
   param('subtype').isIn(SUBTYPES_VALIDOS).withMessage('Tipo de reporte inválido'),
   query('estado').optional().isIn(ESTADOS_VALIDOS).withMessage('Estado inválido')
@@ -190,4 +210,4 @@ const listarMisSolicitudesValidator = [
     .withMessage('Subtype inválido')
 ]
 
-export { reportPublicacionValidator, reportAppValidator, reportUsuarioValidator, reportArticuloValidator, rehabilitarUsuarioValidator, listarReportesValidator, listarSolicitudesValidator, listarReportesRedGlobalValidator, resolverReporteRedGlobalValidator, deleteReporteValidator, deleteSolicitudValidator, listarMisSolicitudesValidator }
+export { reportPublicacionValidator, reportAppValidator, reportUsuarioValidator, reportArticuloValidator, rehabilitarUsuarioValidator, listarReportesValidator, listarSolicitudesValidator, listarReportesRedGlobalValidator, resolverReporteRedGlobalValidator, deleteReporteValidator, deleteSolicitudValidator, listarMisSolicitudesValidator, reportRedValidator }

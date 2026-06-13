@@ -51,7 +51,7 @@ router.get('/perfil-publico/:usuarioId/info', verifyToken, requirePerfilCompleto
 router.get('/perfil-publico/:usuarioId/feed', verifyToken, requirePerfilCompleto, validators.mongoIdParam('usuarioId'), validateResult, obtenerPerfilPublicoFeed)
 
 // Estudiante: reportes sobre redes
-router.post('/estudiantes/reportes/red', verifyToken, requirePerfilCompleto, validators.mongoIdBody('redId'), validateResult, crearReporteRed)
+router.post('/estudiantes/reportes/red', verifyToken, requirePerfilCompleto, validators.mongoIdBody('redId'), validators.reportRedValidator, validateResult, crearReporteRed)
 
 // Estudiante: solicitar ser admin de red comunitaria
 router.post('/estudiantes/solicitud/postular/admin-red', verifyToken, requirePerfilCompleto, validators.mongoIdBody('redId'), validators.trimAndNotEmpty('descripcion'), validateResult, crearSolicitudPostularAdminRed)

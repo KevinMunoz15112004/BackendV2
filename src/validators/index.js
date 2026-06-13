@@ -44,7 +44,8 @@ export const validators = {
   resolverReporteRedGlobalValidator: report.resolverReporteRedGlobalValidator,
   deleteReporteValidator: report.deleteReporteValidator,      
   deleteSolicitudValidator: report.deleteSolicitudValidator,
-  listarMisSolicitudesValidator: report.listarMisSolicitudesValidator
+  listarMisSolicitudesValidator: report.listarMisSolicitudesValidator,
+  reportRedValidator: report.reportRedValidator,
 }
 
 // content
