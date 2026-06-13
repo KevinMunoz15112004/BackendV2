@@ -126,10 +126,16 @@ const resolverApelacion = async (req, res) => {
         estudiante.suspendido = false
         estudiante.strikes = []
         await estudiante.save()
-        
-        await sendMailApelacionAprobada(estudiante.correo, notaResolucion)
+
+      }
+    }
+
+    const emailDestino = apelacion.estudianteId?.email || apelacion.correo
+    if (emailDestino) {
+      if (estado === 'aprobada') {
+        await sendMailApelacionAprobada(emailDestino, notaResolucion)
       } else if (estado === 'rechazada') {
-        await sendMailApelacionRechazada(estudiante.correo, notaResolucion)
+        await sendMailApelacionRechazada(emailDestino, notaResolucion)
       }
     }
 
