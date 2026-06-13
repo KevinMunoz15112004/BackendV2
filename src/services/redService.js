@@ -6,6 +6,7 @@ import AdminRed from '../models/adminRedes.js'
 import { crearNotificacion } from '../helpers/notificaciones.js'
 import { triggerUserChannel } from '../config/pusher.js'
 import { sendMailRedAprobada, sendMailRedRechazada } from '../config/nodemailer.js'
+import SolicitudUnificada from '../models/Solicitudes.js'
 
 export const aprobarRed = async (red, emisorId) => {
   const userId = red.administrador

@@ -23,7 +23,7 @@ import { crearReportePublicacion, crearReporteApp, crearReporteUsuario, crearRep
 const router = Router()
 
 // Estudiantes
-router.post('/redes/solicitar-creacion', verifyToken, validators.title('nombre'), validators.description('descripcion'), validators.description('proposito'), validateResult, solicitarCreacionRed)
+router.post('/redes/solicitar-creacion', verifyToken, requirePerfilCompleto, validators.title('nombre'), validators.description('descripcion'), validators.description('proposito'), validateResult, solicitarCreacionRed)
 
 router.post('/publicaciones/:id/like', verifyToken, requirePerfilCompleto, validators.mongoIdParam('id'), validateResult, darLikePublicacion)
 router.delete('/publicaciones/:id/like', verifyToken, requirePerfilCompleto, validators.mongoIdParam('id'), validateResult, quitarLikePublicacion)
