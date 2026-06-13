@@ -555,7 +555,7 @@ const marcarNotificacionLeida = async (req, res) => {
     if (!notif) return res.status(404).json({ msg: 'Notificación no encontrada' })
 
     // Verificar que la notificación pertenece al usuario activo
-    if (notif.destinatarioId.toString() !== req.user._id.toString()) {
+    if (notif.usuarioId.toString() !== req.user._id.toString()) {
       return res.status(403).json({ msg: 'No tienes permiso para marcar esta notificación' })
     }
 
