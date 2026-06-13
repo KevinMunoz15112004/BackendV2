@@ -21,7 +21,7 @@ const perfilAdminRed = async (req, res) => {
     const publicacionesCount = await Publicacion.countDocuments({ autorId: req.user._id })
     const articulosCount = await Articulo.countDocuments({ autorId: req.user._id })
     const totalPublicaciones = publicacionesCount + articulosCount
-    
+
     // Todas las redes a las que está unido (como miembro/estudiante) sin contar la global
     const redesUnidas = await filterOutGlobalIds(req.user.redComunitaria || [])
     const redesCount = redesUnidas.length
@@ -122,6 +122,10 @@ const eliminarEstudianteDeRed = async (req, res) => {
 
     if (!estudiante) {
       return res.status(404).json({ msg: 'Estudiante no encontrado' })
+    }
+
+    if (estudianteId === req.user._id.toString()) {
+      return res.status(403).json({ msg: 'No puedes eliminarte a ti mismo de la red' })
     }
 
     if (!redAsignadaId) return res.status(403).json({ msg: 'No autorizado para esta acción' })

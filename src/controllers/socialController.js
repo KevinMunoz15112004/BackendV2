@@ -553,6 +553,17 @@ const marcarNotificacionLeida = async (req, res) => {
     const { id } = req.params
     const notif = await Notificacion.findById(id)
     if (!notif) return res.status(404).json({ msg: 'Notificación no encontrada' })
+
+    // Verificar que la notificación pertenece al usuario activo
+    if (notif.destinatarioId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ msg: 'No tienes permiso para marcar esta notificación' })
+    }
+
+    // Verificar que no esté ya leída
+    if (notif.leida) {
+      return res.status(400).json({ msg: 'La notificación ya fue marcada como leída' })
+    }
+
     notif.leida = true
     await notif.save()
     return res.status(200).json({ msg: 'Notificación marcada como leída' })
