@@ -28,7 +28,7 @@ const notificacionSchema = new mongoose.Schema({
   },
   tipo: {
     type: String,
-    enum: ['like', 'comentario', 'respuesta_comentario', 'mensaje'],
+    enum: ['like', 'comentario', 'respuesta_comentario', 'mensaje', 'strike'],
     required: true
   },
   publicacionId: {

@@ -54,7 +54,12 @@ const redComunitariaSchema = new mongoose.Schema({
   cantidadMiembros: {
     type: Number,
     default: 0
-  }
+  },
+  strikes: [{
+    reporteId: { type: mongoose.Schema.Types.ObjectId, ref: 'ReporteUnificado' },
+    motivo: { type: String },
+    fecha: { type: Date, default: Date.now }
+  }]
 }, {
   timestamps: true
 });

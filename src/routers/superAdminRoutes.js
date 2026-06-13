@@ -1,10 +1,11 @@
 import {Router} from 'express'
-import { comprobarTokenPassword, crearNuevoPassword, recuperarPassword, login, perfil, actualizarPerfil, actualizarAvatar, actualizarPassword, obtenerRedes, obtenerRedPorId, eliminarRed, resolverReporteRedGlobalSuperAdmin } 
+import { comprobarTokenPassword, crearNuevoPassword, recuperarPassword, login, perfil, actualizarPerfil, actualizarAvatar, actualizarPassword, obtenerRedes, obtenerRedPorId, eliminarRed, resolverReporteRedGlobalSuperAdmin, obtenerEstudiantes, obtenerEstudiantePorId } 
 from '../controllers/SuperAdminController.js'
 import { listarRedesPendientesAprobacion, resolverAprobacionRed } from '../controllers/socialController.js'
 import validators from '../validators/index.js'
 import validateResult from '../validators/validateResult.js'
 import { autenticarToken, isSuperAdmin } from '../middlewares/authSuperAdmin.js'
+import { getApelaciones, getApelacionById, resolverApelacion } from '../controllers/apelacionController.js'
 import {
   listarReportes,
   listarSolicitudes,
@@ -13,12 +14,14 @@ import {
   resolverReporteApp,
   resolverSolicitudVerificacion,
   resolverSolicitudOficializacion,
-  resolverSolicitudRehabilitar,
-  resolverSolicitudHabilitarUsuario,
   resolverSolicitudPostularAdminRed,
   resolverSolicitudRevocarAdminRed,
   deleteSolicitudPorId,
-  deleteReportePorId
+  deleteReportePorId,
+  obtenerStrikesUsuario,
+  eliminarStrikeUsuario,
+  obtenerStrikesRed,
+  eliminarStrikeRed
 } from '../controllers/reportesSolicitudesController.js'
 
 const router = Router()
@@ -38,6 +41,10 @@ router.get('/redes', autenticarToken, isSuperAdmin, obtenerRedes)
 router.get('/red/:id', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validateResult, obtenerRedPorId)
 router.delete('/eliminar-red/:id', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validateResult, eliminarRed)
 
+// Gestión de estudiantes
+router.get('/estudiantes', autenticarToken, isSuperAdmin, obtenerEstudiantes)
+router.get('/estudiantes/:id', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validateResult, obtenerEstudiantePorId)
+
 // Reportes
 router.get('/reportes/ver/:subtype', autenticarToken, isSuperAdmin, validators.listarReportesValidator, validateResult, listarReportes)
 router.patch('/reportes/usuarios/:id/resolver', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validateResult, resolverReporteUsuario)
@@ -56,12 +63,6 @@ router.get('/solicitudes/ver/:subtype', autenticarToken, isSuperAdmin, validator
 router.patch('/redes/solicitudes/:id/resolver-verificacion', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validators.resolverVerificacionRedValidator, validateResult, resolverSolicitudVerificacion)
 router.patch('/redes/solicitudes/:id/resolver-oficializacion', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validators.resolverVerificacionRedValidator, validateResult, resolverSolicitudOficializacion)
 
-// Solicitudes de habilitar usuarios (creadas por estudiantes suspendidos)
-router.patch('/superadmin/solicitudes/habilitar-usuarios/:id/resolver', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validateResult, resolverSolicitudHabilitarUsuario)
-
-// Solicitudes de rehabilitar redes (creadas por admin_red)
-router.patch('/redes/rehabilitar/solicitudes/:id/resolver', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validateResult, resolverSolicitudRehabilitar)
-
 // Solicitudes de revocar admin de red y postular como admin de red
 router.patch('/red/:id/resolver/revocar-rol', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validateResult, resolverSolicitudRevocarAdminRed)
 router.patch('/red/:id/resolver/postular-rol', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validateResult, resolverSolicitudPostularAdminRed)
@@ -69,5 +70,16 @@ router.patch('/red/:id/resolver/postular-rol', autenticarToken, isSuperAdmin, va
 // Solicitudes de crear redes comunitarias 
 router.get('/superadmin/redes/pendientes', autenticarToken, isSuperAdmin, listarRedesPendientesAprobacion)
 router.patch('/superadmin/redes/:redId/aprobacion', autenticarToken, isSuperAdmin, validators.mongoIdParam('redId'), validateResult, resolverAprobacionRed)
+
+// Strikes
+router.get('/estudiantes/:id/strikes', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validateResult, obtenerStrikesUsuario)
+router.delete('/estudiantes/:id/strikes/:strikeId', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validators.mongoIdParam('strikeId'), validateResult, eliminarStrikeUsuario)
+router.get('/redes/:id/strikes', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validateResult, obtenerStrikesRed)
+router.delete('/redes/:id/strikes/:strikeId', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validators.mongoIdParam('strikeId'), validateResult, eliminarStrikeRed)
+
+// Apelaciones
+router.get('/apelaciones', autenticarToken, isSuperAdmin, getApelaciones)
+router.get('/apelaciones/:id', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validateResult, getApelacionById)
+router.patch('/apelaciones/:id/resolver', autenticarToken, isSuperAdmin, validators.mongoIdParam('id'), validators.resolverApelacionValidator, validateResult, resolverApelacion)
 
 export default router

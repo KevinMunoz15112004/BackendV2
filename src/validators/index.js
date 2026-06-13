@@ -5,6 +5,7 @@ import * as auth from './authValidators.js'
 import * as report from './reportValidators.js'
 import * as content from './contentValidators.js'
 import * as red from './redValidators.js'
+import * as apelacion from './apelacionValidators.js'
 
 export const validators = {
   // common
@@ -55,5 +56,9 @@ validators.actualizarRedComunitariaValidator = red.actualizarRedComunitariaValid
 validators.solicitarVerificacionRedValidator = red.solicitarVerificacionRedValidator
 validators.resolverVerificacionRedValidator = red.resolverVerificacionRedValidator
 validators.solicitarOficializacionRedValidator = red.solicitarOficializacionRedValidator
+
+// apelacion
+validators.crearApelacionValidator = apelacion.crearApelacionValidator
+validators.resolverApelacionValidator = apelacion.resolverApelacionValidator
 
 export default validators

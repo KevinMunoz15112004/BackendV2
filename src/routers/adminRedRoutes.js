@@ -3,7 +3,7 @@ import { verifyToken, requireRole } from '../middlewares/auth.js'
 import { perfilAdminRed, verEstudiantesDeRed, eliminarEstudianteDeRed, actualizarRedComunitaria, obtenerInfoRed } from '../controllers/adminRedController.js'
 import validators from '../validators/index.js'
 import validateResult from '../validators/validateResult.js'
-import { resolverReportePublicacionAdmin, crearSolicitudVerificacion, crearSolicitudRehabilitar, deleteSolicitudRehabilitarByAdmin, crearSolicitudRevocarAdminRed, crearSolicitudOficializacion, deleteReportePorId, listarMisSolicitudes, listarReportesAdminRed } from '../controllers/reportesSolicitudesController.js'
+import { resolverReportePublicacionAdmin, crearSolicitudVerificacion, crearSolicitudRevocarAdminRed, crearSolicitudOficializacion, deleteReportePorId, listarMisSolicitudes, listarReportesAdminRed } from '../controllers/reportesSolicitudesController.js'
 
 const router = Router()
 
@@ -20,13 +20,9 @@ router.delete('/admin/estudiantes/eliminar/:estudianteId', verifyToken, requireR
 router.get('/admin/red/reportes', verifyToken, requireRole('admin_red'), listarReportesAdminRed)
 router.patch('/admin/reportes/:id/resolver', verifyToken, requireRole('admin_red'), validators.mongoIdParam('id'), validateResult, resolverReportePublicacionAdmin)
 router.delete('/admin/reportes/:subtype/:id', verifyToken, requireRole('admin_red'), validators.deleteReporteValidator, validateResult, deleteReportePorId)
-router.delete('/admin/solicitudes/rehabilitar/:id', verifyToken, requireRole('admin_red'), validators.mongoIdParam('id'), validateResult, deleteSolicitudRehabilitarByAdmin)
 
 // Admin Red:listar sus propias solicitudes
 router.get('/solicitudes/:subtype', verifyToken, requireRole('admin_red'), validators.listarMisSolicitudesValidator, validateResult, listarMisSolicitudes)
-
-// Admin Red:crear solicitud para rehabilitar su red deshabilitada
-router.post('/solicitudes/rehabilitar', verifyToken, requireRole('admin_red'), validators.mongoIdBody('redId'), validators.description('descripcion', { optional: false }), validateResult, crearSolicitudRehabilitar)
 
 // Admin Red:solicitar verificación/oficialización de su red (solo su red asignada)
 router.post('/redes/solicitar-verificacion', verifyToken, requireRole('admin_red'), validators.mongoIdBody('redId'), validators.solicitarVerificacionRedValidator, validateResult, crearSolicitudVerificacion)

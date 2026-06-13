@@ -20,8 +20,6 @@ const SUBTYPES_VALIDOS = [
 const SOLICITUD_SUBTYPES_VALIDOS = [
   'verificacion',
   'oficializacion',
-  'rehabilitar_red',
-  'habilitar_usuario',
   'postular_admin_red',
   'revocar_admin_red'
 ]
@@ -43,15 +41,13 @@ const REPORTE_SUBTYPES_DELETE = [
 const SOLICITUD_SUBTYPES_DELETE = [
   'verificacion',
   'oficializacion',
-  'rehabilitar_red',
-  'habilitar_usuario',
   'postular_admin_red',
   'revocar_admin_red'
 ]
 
 const SOLICITUD_SUBTYPES_PROPIOS = [
-  'rehabilitar_red', 
-  'verificacion'
+  'verificacion',
+  'oficializacion',
 ]
 
 const PUBLICACION_TIPOS = [
@@ -65,6 +61,8 @@ const PUBLICACION_TIPOS = [
 const ARTICULO_TIPOS = [
   'Estafa',
   'Contenido Inapropiado',
+  'Spam',
+  'Acoso o Bullying',
   'Información falsa',
   'Otro'
 ]

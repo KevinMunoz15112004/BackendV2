@@ -21,6 +21,9 @@ export async function verifyToken(req, res, next) {
     const payload = jwt.verify(token, process.env.JWT_SECRET)
     const user = await Estudiante.findById(payload.id).select('-password').lean()
     if (!user) return res.status(404).json({ msg: 'Usuario no encontrado' })
+    if (user.suspendido) {
+      return res.status(403).json({ msg: 'Cuenta suspendida por acumulación de infracciones. Solicita rehabilitación al Super Administrador.' })
+    }
     req.user = user
     req.tokenPayload = payload
     // si el usuario tiene rol admin_red, cargar relaciones adminRed
@@ -50,6 +53,9 @@ export async function optionalVerifyToken(req, res, next) {
     const payload = jwt.verify(token, process.env.JWT_SECRET)
     const user = await Estudiante.findById(payload.id).select('-password').lean()
     if (!user) return res.status(404).json({ msg: 'Usuario no encontrado' })
+    if (user.suspendido) {
+      return res.status(403).json({ msg: 'Cuenta suspendida por acumulación de infracciones. Solicita rehabilitación al Super Administrador.' })
+    }
     req.user = user
     req.tokenPayload = payload
     if (Array.isArray(user.roles) && user.roles.includes('admin_red')) {

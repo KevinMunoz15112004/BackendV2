@@ -14,6 +14,9 @@ import profileService from '../services/profileService.js'
 import AdminRed from '../models/adminRedes.js'
 import { sendMailToRecoveryPassword, sendMailToRegister, enviarCorreoNuevoAdmin } from "../config/nodemailer.js"
 import jwt from 'jsonwebtoken'
+import { agregarStrikeUsuario } from '../helpers/reportHelpers.js'
+import { crearNotificacion } from '../helpers/notificaciones.js'
+import { eliminarPublicacionConStrike, eliminarArticuloConStrike } from '../services/reportesService.js'
 
 //Controladores para la gestión de la cuenta
 const login = async (req, res) => {
@@ -36,7 +39,7 @@ const login = async (req, res) => {
       return res.status(401).json({ msg: "Lo sentimos, la contraseña no es correcta" })
     }
 
-    const { nombre, apellido, _id, rol } = superAdminBDD
+    const { nombre, apellido, _id, rol, avatar } = superAdminBDD
     const crearTokenJWT = (id, rol) => jwt.sign({ id, rol }, process.env.JWT_SECRET, { expiresIn: '2h' })
     const token = crearTokenJWT(superAdminBDD._id, superAdminBDD.rol)
 
@@ -46,7 +49,8 @@ const login = async (req, res) => {
       nombre,
       apellido,
       _id,
-      email: superAdminBDD.email
+      email: superAdminBDD.email,
+      avatar
     })
   } catch (error) {
     console.error(error)
@@ -55,7 +59,6 @@ const login = async (req, res) => {
 }
 
 const recuperarPassword = async (req, res) => {
-  // Request format validation moved to centralized validators (routes)
 
   try {
     const { email } = req.body;
@@ -241,9 +244,34 @@ const obtenerEstudiantePorId = async (req, res) => {
 const obtenerRedes = async (req, res) => {
   try {
     const redes = await RedComunitaria.find()
-      .select('nombre descripcion proposito fotoPerfil cantidadMiembros esVerificada esOficial esGlobal deshabilitada estadoAprobacion createdAt')
+      .select('nombre descripcion proposito fotoPerfil cantidadMiembros esVerificada esOficial esGlobal deshabilitada estadoAprobacion createdAt administrador')
       .lean()
-    return res.status(200).json({ redes })
+      
+    // Agregar el conteo de publicaciones y artículos a cada red, y buscar al admin
+    const redesConDetalles = await Promise.all(
+      redes.map(async (red) => {
+        const numPublicaciones = await Publicacion.countDocuments({ comunidadId: red._id });
+        const numArticulos = await Articulo.countDocuments({ redComunitaria: red._id });
+        
+        // Buscar al administrador activo de la red
+        const adminActivo = await AdminRed.findOne({ redId: red._id, estado: 'activo' })
+          .populate('usuarioId', 'nombre apellido email roles fotoPerfil biografia username status suspendido')
+          .lean();
+          
+        let administrador = null;
+        if (adminActivo && adminActivo.usuarioId && adminActivo.usuarioId.roles.includes('admin_red')) {
+          administrador = adminActivo.usuarioId;
+        }
+
+        return {
+          ...red,
+          cantidadPublicaciones: numPublicaciones + numArticulos,
+          administrador
+        };
+      })
+    );
+      
+    return res.status(200).json({ redes: redesConDetalles })
   } catch (error) {
     console.error(error)
     return res.status(500).json({ msg: 'Error en el servidor' })
@@ -340,7 +368,7 @@ const resolverReporteRedGlobalSuperAdmin = async (req, res) => {
     const { estado, respuesta } = req.body
 
     const mapped = mapEstadoFromBody(estado)
-    if (!mapped || !['resuelto', 'rechazado'].includes(mapped)) 
+    if (!mapped || !['resuelto', 'rechazado'].includes(mapped))
       return res.status(400).json({ msg: 'Estado inválido. Solo se acepta "Resuelta" o "Rechazada"' })
 
     const redGlobal = await RedComunitaria.findOne({ esGlobal: true })
@@ -356,64 +384,58 @@ const resolverReporteRedGlobalSuperAdmin = async (req, res) => {
     if (['resuelto', 'rechazado'].includes(reporte.estado))
       return res.status(400).json({ msg: 'El reporte ya fue resuelto o rechazado' })
 
+    // Campos comunes
+    reporte.resolvedBy = req.user._id
+    reporte.resolvedByModel = 'SuperAdmin'
+    if (respuesta) reporte.respuesta = respuesta
+
     if (mapped === 'rechazado') {
       reporte.estado = 'rechazado'
-      if (respuesta) reporte.respuesta = respuesta
-      reporte.resolvedBy = req.user._id  
-      reporte.resolvedByModel = 'SuperAdmin' 
       await reporte.save()
       const reportePop = await populateReporte(reporte._id, reporte.subtype)
       return res.status(200).json({ msg: 'Reporte rechazado', reporte: reportePop })
     }
 
-    // Resuelto: eliminar contenido según subtype
-    if (reporte.subtype === 'publicacion') {
-      const publicacion = await Publicacion.findById(reporte.meta.publicacionId)
-      if (!publicacion) {
-        reporte.estado = 'resuelto'
-        if (respuesta) reporte.respuesta = respuesta
-        reporte.resolvedBy = req.user._id 
-        reporte.resolvedByModel = 'SuperAdmin' 
-        await reporte.save()
-        const reportePop = await populateReporte(reporte._id, reporte.subtype)
-        return res.status(200).json({ msg: 'Reporte resuelto. La publicación no existe (posible eliminación previa)', reporte: reportePop })
-      }
+    // Resuelto
+    const handler = reporte.subtype === 'publicacion'
+      ? eliminarPublicacionConStrike
+      : eliminarArticuloConStrike
 
-      await Comentario.deleteMany({ postId: publicacion._id })
-      await Estudiante.updateMany(
-        { publicacionesGuardadas: publicacion._id },
-        { $pull: { publicacionesGuardadas: publicacion._id } }
-      )
-      await Publicacion.findByIdAndDelete(publicacion._id)
-    }
-
-    if (reporte.subtype === 'articulo') {
-      const articulo = await Articulo.findById(reporte.meta.articuloId)
-      if (!articulo) {
-        reporte.estado = 'resuelto'
-        if (respuesta) reporte.respuesta = respuesta
-        reporte.resolvedBy = req.user._id  
-        reporte.resolvedByModel = 'SuperAdmin'
-        await reporte.save()
-        const reportePop = await populateReporte(reporte._id, reporte.subtype)
-        return res.status(200).json({ msg: 'Reporte resuelto. El artículo no existe (posible eliminación previa)', reporte: reportePop })
-      }
-
-      await Comentario.deleteMany({ postId: articulo._id })
-      await Estudiante.updateMany(
-        { publicacionesGuardadas: articulo._id },
-        { $pull: { publicacionesGuardadas: articulo._id } }
-      )
-      await Articulo.findByIdAndDelete(articulo._id)
-    }
+    const { noExiste } = await handler({ reporte })
 
     reporte.estado = 'resuelto'
-    if (respuesta) reporte.respuesta = respuesta
-    reporte.resolvedBy = req.user._id 
-    reporte.resolvedByModel = 'SuperAdmin' 
     await reporte.save()
 
     const reportePop = await populateReporte(reporte._id, reporte.subtype)
+
+    // Cerrar automáticamente reportes pendientes del mismo contenido
+    const campoId = reporte.subtype === 'publicacion' ? 'meta.publicacionId' : 'meta.articuloId';
+    const contenidoId = reporte.meta[reporte.subtype === 'publicacion' ? 'publicacionId' : 'articuloId'];
+
+    if (contenidoId) {
+      await ReporteUnificado.updateMany(
+        {
+          _id: { $ne: reporte._id },
+          [campoId]: contenidoId,
+          estado: 'pendiente'
+        },
+        {
+          $set: {
+            estado: 'resuelto',
+            resolvedBy: req.user._id,
+            resolvedByModel: 'SuperAdmin',
+            fechaResolucion: new Date(),
+            notaInterna: 'Cerrado automáticamente por resolución del contenido reportado.'
+          }
+        }
+      );
+    }
+
+    if (noExiste) {
+      const tipo = reporte.subtype === 'publicacion' ? 'publicación' : 'artículo'
+      return res.status(200).json({ msg: `Reporte resuelto. La ${tipo} no existe (posible eliminación previa)`, reporte: reportePop })
+    }
+
     return res.status(200).json({ msg: 'Reporte resuelto y contenido eliminado', reporte: reportePop })
 
   } catch (error) {

@@ -5,7 +5,7 @@ import { requirePerfilCompleto, disallowPerfilCompleto } from '../middlewares/ch
 import { verifyToken, optionalVerifyToken } from '../middlewares/auth.js'
 import validators from '../validators/index.js'
 import validateResult from '../validators/validateResult.js'
-import { crearSolicitudHabilitarUsuario, crearReporteRed, crearSolicitudPostularAdminRed } from '../controllers/reportesSolicitudesController.js'
+import { crearReporteRed, crearSolicitudPostularAdminRed } from '../controllers/reportesSolicitudesController.js'
 
 const router = Router()
 
@@ -49,10 +49,6 @@ router.post('/estudiantes/salirse/red', verifyToken, requirePerfilCompleto, vali
 router.get('/cargar/estudiantes', verifyToken, requirePerfilCompleto, obtenerEstudiantes)
 router.get('/perfil-publico/:usuarioId/info', verifyToken, requirePerfilCompleto, validators.mongoIdParam('usuarioId'), validateResult, obtenerPerfilPublicoInfo)
 router.get('/perfil-publico/:usuarioId/feed', verifyToken, requirePerfilCompleto, validators.mongoIdParam('usuarioId'), validateResult, obtenerPerfilPublicoFeed)
-
-// Solicitud para que un estudiante suspendido pida ser habilitado
-// This route accepts requests with or without a token; when unauthenticated must provide email or username.
-router.post('/estudiantes/solicitud-habilitar', optionalVerifyToken, validators.rehabilitarUsuarioValidator, validateResult, crearSolicitudHabilitarUsuario)
 
 // Estudiante: reportes sobre redes
 router.post('/estudiantes/reportes/red', verifyToken, requirePerfilCompleto, validators.mongoIdBody('redId'), validateResult, crearReporteRed)

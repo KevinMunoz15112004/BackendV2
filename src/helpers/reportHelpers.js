@@ -1,5 +1,7 @@
 import ReporteUnificado from '../models/Reportes.js'
 import SolicitudUnificada from '../models/Solicitudes.js'
+import Estudiante from '../models/Estudiantes.js'
+import RedComunitaria from '../models/RedComunitaria.js'
 
 export const mapEstadoFromBody = (valor) => {
   if (!valor) return null
@@ -41,8 +43,16 @@ export const populateReporte = (id, subtype) => {
 
   return ReporteUnificado.findById(id)
     .select(excludeMap[subtype] || '-__v')
-    .populate('meta.publicacionId', 'titulo contenido tipoContenido categoria mediaUrls')
-    .populate('meta.articuloId', 'titulo descripcion tipoContenido mediaUrls')
+    .populate({
+      path: 'meta.publicacionId',
+      select: 'titulo contenido tipoContenido categoria mediaUrls autorId timestamp',
+      populate: { path: 'autorId', select: 'nombre apellido username fotoPerfil' }
+    })
+    .populate({
+      path: 'meta.articuloId',
+      select: 'titulo descripcion tipoContenido categoria mediaUrls autorId createdAt',
+      populate: { path: 'autorId', select: 'nombre apellido username fotoPerfil' }
+    })
     .populate('meta.reportadoUsuarioId', 'nombre apellido fotoPerfil email')
     .populate('meta.redId', 'nombre fotoPerfil esVerificada deshabilitada')
     .populate('reporterId', 'nombre apellido fotoPerfil email')
@@ -70,12 +80,21 @@ export const reportePopulateMap = {
   usuario: [{ path: 'meta.reportadoUsuarioId', select: 'nombre apellido fotoPerfil email' }],
   red: [{ path: 'meta.redId', select: 'nombre fotoPerfil esVerificada' }],
   app: [],
-  publicacion: [{ path: 'meta.publicacionId', select: 'titulo contenido tipoContenido mediaUrls' },
-    { path: 'meta.redId', select: 'nombre descripcion' }
+  publicacion: [
+    { 
+      path: 'meta.publicacionId', 
+      select: 'titulo contenido tipoContenido categoria mediaUrls timestamp',
+      populate: { path: 'autorId', select: 'nombre apellido username fotoPerfil' }
+    },
+    { path: 'meta.redId', select: 'nombre descripcion fotoPerfil' }
   ],
    articulo: [
-    { path: 'meta.articuloId', select: 'titulo descripcion tipoContenido mediaUrls' },
-    { path: 'meta.redId', select: 'nombre descripcion' }
+    { 
+      path: 'meta.articuloId', 
+      select: 'titulo descripcion tipoContenido categoria mediaUrls createdAt',
+      populate: { path: 'autorId', select: 'nombre apellido username fotoPerfil' }
+    },
+    { path: 'meta.redId', select: 'nombre descripcion fotoPerfil' }
   ]
 }
 
@@ -103,4 +122,36 @@ export const solicitudSelectMap = {
   habilitar_usuario: '-meta.redId -meta.solicitarVerificada -meta.solicitarOficial -meta.nombreRed -meta.fechaCreacionRed -meta.cantidadMiembros -meta.dependencia -meta.dependenciaPersonalizada -meta.cargo -meta.cargoPersonalizado -meta.correoInstitucional -meta.justificacion -__v',
   revocar_admin_red: '-meta.solicitarVerificada -meta.solicitarOficial -meta.nombreRed -meta.fechaCreacionRed -meta.cantidadMiembros -meta.dependencia -meta.dependenciaPersonalizada -meta.cargo -meta.cargoPersonalizado -meta.correoInstitucional -meta.justificacion -__v',
   postular_admin_red: '-meta.solicitarVerificada -meta.solicitarOficial -meta.nombreRed -meta.fechaCreacionRed -meta.cantidadMiembros -meta.dependencia -meta.dependenciaPersonalizada -meta.cargo -meta.cargoPersonalizado -meta.correoInstitucional -meta.justificacion -__v',
+}
+
+// Helper: añadir strike a usuario de forma atómica
+export const agregarStrikeUsuario = async (usuarioId, strikeData) => {
+  const yaExiste = await Estudiante.findOne({
+    _id: usuarioId,
+    'strikes.reporteId': strikeData.reporteId
+  })
+  if (yaExiste) return null
+
+  const updated = await Estudiante.findByIdAndUpdate(
+    usuarioId,
+    { $push: { strikes: strikeData } },
+    { new: true }
+  )
+  return updated
+}
+
+// Helper: añadir strike a red de forma atómica
+export const agregarStrikeRed = async (redId, strikeData) => {
+  const yaExiste = await RedComunitaria.findOne({
+    _id: redId,
+    'strikes.reporteId': strikeData.reporteId
+  })
+  if (yaExiste) return null
+
+  const updated = await RedComunitaria.findByIdAndUpdate(
+    redId,
+    { $push: { strikes: strikeData } },
+    { new: true }
+  )
+  return updated
 }

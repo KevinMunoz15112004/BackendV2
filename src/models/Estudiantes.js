@@ -88,7 +88,13 @@ const estudianteSchema = new Schema({
     type: Boolean,
     default: false
   },
-  
+  strikes: [{
+    reporteId: { type: mongoose.Schema.Types.ObjectId, ref: 'ReporteUnificado' },
+    motivo: { type: String },
+    tipoReporte: { type: String, enum: ['usuario', 'publicacion', 'articulo', 'red'] },
+    publicacionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Publicacion', default: null },
+    fecha: { type: Date, default: Date.now }
+  }],
 }, {
   timestamps: true
 });

@@ -135,3 +135,64 @@ const _notificarCreador = async ({ usuarioId, emisorId, mensaje }) => {
     updatedAt: notificacion.updatedAt
   })
 }
+
+export const aprobarPostulacionAdminRed = async ({ solicitud, red, user, emisorId }) => {
+  // Añadir rol admin_red si no lo tiene
+  if (!Array.isArray(user.roles)) user.roles = []
+  if (!user.roles.includes('admin_red')) {
+    user.roles.push('admin_red')
+    await user.save()
+  }
+
+  // Añadir red a user.redComunitaria si no está
+  if (!Array.isArray(user.redComunitaria)) user.redComunitaria = []
+  if (!user.redComunitaria.some(rid => rid.toString() === red._id.toString())) {
+    user.redComunitaria.push(red._id)
+    await user.save()
+  }
+
+  // Crear o reactivar relación en AdminRed
+  const existeRel = await AdminRed.findOne({ usuarioId: user._id, redId: red._id })
+  if (!existeRel) {
+    await AdminRed.create({
+      usuarioId: user._id,
+      redId: red._id,
+      estado: 'activo',
+      permisos: ['gestion_publicaciones', 'gestionar_miembros'],
+      fechaAprobacion: new Date()
+    })
+  } else if (existeRel.estado !== 'activo') {
+    existeRel.estado = 'activo'
+    existeRel.fechaAprobacion = new Date()
+    await existeRel.save()
+  }
+
+  // Asignar como nuevo admin de la red
+  red.administrador = user._id
+  if (!red.miembros.some(mid => mid.toString() === user._id.toString())) {
+    red.miembros.push(user._id)
+    red.cantidadMiembros = red.miembros.length
+  }
+  await red.save()
+
+  // Rechazar automáticamente las demás postulaciones pendientes para esta red
+  await SolicitudUnificada.updateMany(
+    {
+      subtype: 'postular_admin_red',
+      'meta.redId': red._id,
+      estado: 'pendiente',
+      _id: { $ne: solicitud._id }
+    },
+    {
+      estado: 'rechazada',
+      respuesta: 'Se seleccionó otro administrador para la red'
+    }
+  )
+
+  // Notificar al nuevo admin
+  await _notificarCreador({
+    usuarioId: user._id,
+    emisorId,
+    mensaje: `Tu postulación fue aprobada. Ahora eres administrador de la red ${red.nombre}`
+  })
+}

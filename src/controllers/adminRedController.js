@@ -59,6 +59,8 @@ const obtenerInfoRed = async (req, res) => {
 
     // Contadores importantes para mostrar al admin de red
     const publicacionesCount = await Publicacion.countDocuments({ comunidadId: red._id })
+    const articulosCount = await Articulo.countDocuments({ redComunitaria: red._id })
+    const cantidadPublicaciones = publicacionesCount + articulosCount
 
     // Asegurar que cantidadMiembros esté poblada o derivada
     const cantidadMiembros = typeof red.cantidadMiembros === 'number' ? red.cantidadMiembros : (Array.isArray(red.miembros) ? red.miembros.length : 0)
@@ -74,9 +76,10 @@ const obtenerInfoRed = async (req, res) => {
       esGlobal: red.esGlobal || false,
       esOficial: red.esOficial || false,
       cantidadMiembros,
-      publicacionesCount,
+      cantidadPublicaciones,
       creadaAt: red.createdAt,
-      actualizadaAt: red.updatedAt
+      actualizadaAt: red.updatedAt,
+      estadoAprobacion: red.estadoAprobacion
     }
 
     return res.status(200).json({ msg: 'Red comunitaria asignada', red: info })
@@ -95,7 +98,7 @@ const verEstudiantesDeRed = async (req, res) => {
 
     if (!redAsignada) return res.status(400).json({ msg: 'No tienes una red comunitaria asignada.' })
 
-    const estudiantes = await Estudiante.find({ redComunitaria: redAsignada }).select('nombre apellido email fotoPerfil').lean()
+    const estudiantes = await Estudiante.find({ redComunitaria: redAsignada }).select('nombre apellido username email fotoPerfil').lean()
 
     if (estudiantes.length === 0) {
       return res.status(200).json({ msg: 'No hay estudiantes en tu red comunitaria', estudiantes: [] })
@@ -207,7 +210,9 @@ const actualizarRedComunitaria = async (req, res) => {
     await red.save()
 
     const redLean = red.toObject()
-    redLean.publicacionesCount = await Publicacion.countDocuments({ comunidadId: red._id })
+    const pubCount = await Publicacion.countDocuments({ comunidadId: red._id })
+    const artCount = await Articulo.countDocuments({ redComunitaria: red._id })
+    redLean.cantidadPublicaciones = pubCount + artCount
 
     res.status(200).json({ msg: 'Red comunitaria actualizada exitosamente', red: redLean })
   } catch (error) {

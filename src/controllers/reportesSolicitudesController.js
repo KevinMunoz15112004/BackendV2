@@ -8,8 +8,10 @@ import AdminRed from '../models/adminRedes.js'
 import Comentario from '../models/Comentarios.js'
 import { crearNotificacion } from '../helpers/notificaciones.js'
 import { triggerUserChannel } from '../config/pusher.js'
-import { mapEstadoFromBody, listarReportesPorSubtype, listarSolicitudesPorSubtype, populateReporte, populateSolicitud, reportePopulateMap, reporteSelectMap, solicitudPopulateMap, solicitudSelectMap } from '../helpers/reportHelpers.js'
+import { mapEstadoFromBody, listarReportesPorSubtype, listarSolicitudesPorSubtype, populateReporte, populateSolicitud, reportePopulateMap, reporteSelectMap, solicitudPopulateMap, solicitudSelectMap, agregarStrikeUsuario, agregarStrikeRed } from '../helpers/reportHelpers.js'
 import { isGlobalRed, getGlobalIds } from '../helpers/globalRed.js'
+import { suspenderUsuarioConStrike, amonestrarRedConStrike, eliminarPublicacionAdminConStrike } from '../services/reportesService.js'
+import { aprobarPostulacionAdminRed } from '../services/redService.js'
 
 // Create report: publication
 const crearReportePublicacion = async (req, res) => {
@@ -160,64 +162,44 @@ const resolverReporteUsuario = async (req, res) => {
     const { id } = req.params
     const { estado, respuesta } = req.body
     const mapped = mapEstadoFromBody(estado)
-    if (!mapped || !['resuelto', 'rechazado'].includes(mapped)) return res.status(400).json({ msg: 'Estado inválido. Solo se acepta "Resuelta" o "Rechazada"' })
+    if (!mapped || !['resuelto', 'rechazado'].includes(mapped))
+      return res.status(400).json({ msg: 'Estado inválido. Solo se acepta "Resuelta" o "Rechazada"' })
 
     const reporte = await ReporteUnificado.findById(id)
-    if (!reporte || reporte.subtype !== 'usuario') return res.status(404).json({ msg: 'Reporte de usuario no encontrado' })
+    if (!reporte || reporte.subtype !== 'usuario')
+      return res.status(404).json({ msg: 'Reporte de usuario no encontrado' })
 
-    if (['resuelto', 'rechazado'].includes(reporte.estado)) return res.status(400).json({ msg: 'El reporte ya fue resuelto o rechazado' })
+    if (['resuelto', 'rechazado'].includes(reporte.estado))
+      return res.status(400).json({ msg: 'El reporte ya fue resuelto o rechazado' })
+
+    // Campos comunes
+    reporte.resolvedBy = req.user._id
+    reporte.resolvedByModel = 'SuperAdmin'
+    if (respuesta) reporte.respuesta = respuesta
 
     if (mapped === 'rechazado') {
       reporte.estado = 'rechazado'
-      if (respuesta) reporte.respuesta = respuesta
-      reporte.resolvedBy = req.user._id   
-      reporte.resolvedByModel = 'SuperAdmin' 
       await reporte.save()
       const reportePop = await populateReporte(reporte._id, 'usuario')
       return res.status(200).json({ msg: 'Reporte rechazado', reporte: reportePop })
     }
 
-    // Resuelto -> suspender usuario
     reporte.estado = 'resuelto'
-    if (respuesta) reporte.respuesta = respuesta
-    reporte.resolvedBy = req.user._id 
-    reporte.resolvedByModel = 'SuperAdmin' 
     await reporte.save()
 
-    const usuario = await Estudiante.findById(reporte.meta.reportadoUsuarioId)
-    if (usuario) {
-      const eraAdminRed = usuario.roles.includes('admin_red')
-      usuario.suspendido = true
+    const usuarioActualizado = await suspenderUsuarioConStrike({ reporte })
 
-      if (eraAdminRed) {
-        usuario.roles = usuario.roles.filter(r => r !== 'admin_red')
+    const reportePop = await populateReporte(reporte._id, 'usuario')
 
-        await Promise.all([
-          AdminRed.findOneAndUpdate(
-            { usuarioId: usuario._id, estado: 'activo' },
-            { estado: 'revocado' }
-          ),
-          RedComunitaria.findOneAndUpdate(
-            { administrador: usuario._id },
-            { administrador: null }
-          )
-        ])
-      }
-
-      await usuario.save()
-
-      const reportePop = await populateReporte(reporte._id, 'usuario')
-
-      const msg = eraAdminRed
-        ? 'Reporte resuelto. Usuario suspendido y rol de administrador revocado'
-        : 'Reporte resuelto. Usuario suspendido'
-
-      return res.status(200).json({ msg, reporte: reportePop })
+    if (!usuarioActualizado) {
+      return res.status(200).json({ msg: 'Reporte resuelto. Usuario no encontrado en el sistema', reporte: reportePop })
     }
 
-    // Si por alguna razón el usuario no existe pero el reporte sí
-    const reportePop = await populateReporte(reporte._id, 'usuario')
-    return res.status(200).json({ msg: 'Reporte resuelto. Usuario no encontrado en el sistema', reporte: reportePop })
+    const msg = usuarioActualizado.strikes.length >= 5
+      ? 'Reporte resuelto. Usuario ha alcanzado 5 strikes y fue suspendido.'
+      : 'Reporte resuelto. Se ha emitido 1 strike al usuario.'
+
+    return res.status(200).json({ msg, reporte: reportePop })
 
   } catch (error) {
     console.error(error)
@@ -231,41 +213,68 @@ const resolverReporteRed = async (req, res) => {
     const { id } = req.params
     const { estado, respuesta } = req.body
     const mapped = mapEstadoFromBody(estado)
-    if (!mapped || !['resuelto', 'rechazado'].includes(mapped)) return res.status(400).json({ msg: 'Estado inválido. Solo se acepta "Resuelta" o "Rechazada"' })
+    if (!mapped || !['resuelto', 'rechazado'].includes(mapped))
+      return res.status(400).json({ msg: 'Estado inválido. Solo se acepta "Resuelta" o "Rechazada"' })
 
     const reporte = await ReporteUnificado.findById(id)
-    if (!reporte || reporte.subtype !== 'red') return res.status(404).json({ msg: 'Reporte de red no encontrado' })
+    if (!reporte || reporte.subtype !== 'red')
+      return res.status(404).json({ msg: 'Reporte de red no encontrado' })
 
-    if (['resuelto', 'rechazado'].includes(reporte.estado)) return res.status(400).json({ msg: 'El reporte ya fue resuelto o rechazado' })
+    if (['resuelto', 'rechazado'].includes(reporte.estado))
+      return res.status(400).json({ msg: 'El reporte ya fue resuelto o rechazado' })
+
+    // Campos comunes
+    reporte.resolvedBy = req.user._id
+    reporte.resolvedByModel = 'SuperAdmin'
+    if (respuesta) reporte.respuesta = respuesta
 
     if (mapped === 'rechazado') {
       reporte.estado = 'rechazado'
-      if (respuesta) reporte.respuesta = respuesta
-      reporte.resolvedBy = req.user._id  
-      reporte.resolvedByModel = 'SuperAdmin'
       await reporte.save()
       const reportePop = await populateReporte(reporte._id, 'red')
       return res.status(200).json({ msg: 'Reporte rechazado', reporte: reportePop })
     }
 
-    // Resuelto: deshabilitar la red
     reporte.estado = 'resuelto'
-    if (respuesta) reporte.respuesta = respuesta
-    reporte.resolvedBy = req.user._id 
-    reporte.resolvedByModel = 'SuperAdmin'
     await reporte.save()
 
-    const red = await RedComunitaria.findById(reporte.meta.redId)
-    if (!red) {
+    if (await isGlobalRed(reporte.meta.redId)) {
+      let strikeMsg = ''
+      let autorId = null
+
+      if (reporte.meta.publicacionId) {
+        const publicacion = await Publicacion.findById(reporte.meta.publicacionId)
+        if (publicacion) autorId = publicacion.autorId
+      } else if (reporte.meta.articuloId) {
+        const articulo = await Articulo.findById(reporte.meta.articuloId)
+        if (articulo) autorId = articulo.autorId
+      }
+
+      if (autorId) {
+        const reporteModificado = {
+          ...reporte.toObject(),
+          meta: {
+            ...reporte.meta,
+            reportadoUsuarioId: autorId
+          }
+        }
+        await suspenderUsuarioConStrike({ reporte: reporteModificado })
+        strikeMsg = ', pero se emitió un strike al autor del contenido.'
+      }
+
       const reportePop = await populateReporte(reporte._id, 'red')
-      return res.status(200).json({ msg: 'Reporte resuelto. La red no existe', reporte: reportePop })
+      return res.status(200).json({ msg: `Reporte resuelto. La Red Global no recibe strikes${strikeMsg}`, reporte: reportePop })
     }
 
-    red.deshabilitada = true
-    await red.save()
-
+    const redActualizada = await amonestrarRedConStrike({ reporte })
     const reportePop = await populateReporte(reporte._id, 'red')
-    return res.status(200).json({ msg: 'Reporte resuelto. Red deshabilitada', reporte: reportePop })
+
+    const msg = redActualizada && redActualizada.strikes.length >= 5
+      ? 'Reporte resuelto. La red ha alcanzado 5 strikes y fue deshabilitada.'
+      : 'Reporte resuelto. Red amonestada (strike).'
+
+    return res.status(200).json({ msg, reporte: reportePop })
+
   } catch (error) {
     console.error(error)
     return res.status(500).json({ msg: 'Error en el servidor' })
@@ -315,57 +324,70 @@ const resolverReportePublicacionAdmin = async (req, res) => {
     const { id } = req.params
     const { estado, respuesta } = req.body
     const mapped = mapEstadoFromBody(estado)
-    if (!mapped || !['resuelto', 'rechazado'].includes(mapped)) return res.status(400).json({ msg: 'Estado inválido. Solo se acepta "Resuelta" o "Rechazada"' })
+    if (!mapped || !['resuelto', 'rechazado'].includes(mapped))
+      return res.status(400).json({ msg: 'Estado inválido. Solo se acepta "Resuelta" o "Rechazada"' })
 
     const reporte = await ReporteUnificado.findById(id)
-    if (!reporte || reporte.subtype !== 'publicacion') return res.status(404).json({ msg: 'Reporte de publicación no encontrado' })
+    if (!reporte || reporte.subtype !== 'publicacion')
+      return res.status(404).json({ msg: 'Reporte de publicación no encontrado' })
 
-    if (['resuelto', 'rechazado'].includes(reporte.estado))return res.status(400).json({ msg: 'El reporte ya fue resuelto o rechazado' })
+    if (['resuelto', 'rechazado'].includes(reporte.estado))
+      return res.status(400).json({ msg: 'El reporte ya fue resuelto o rechazado' })
 
     const admin = req.user
-    if (!admin.redAsignada || !reporte.meta.redId || String(reporte.meta.redId) !== String(admin.redAsignada)) {
+    if (!admin.redAsignada || !reporte.meta.redId || String(reporte.meta.redId) !== String(admin.redAsignada))
       return res.status(403).json({ msg: 'No estás autorizado para resolver este reporte' })
-    }
+
+    // Campos comunes
+    reporte.resolvedBy = req.user._id
+    reporte.resolvedByModel = 'Estudiante'
+    if (respuesta) reporte.respuesta = respuesta
 
     if (mapped === 'rechazado') {
       reporte.estado = 'rechazado'
-      if (respuesta) reporte.respuesta = respuesta
-      reporte.resolvedBy = req.user._id 
-      reporte.resolvedByModel = 'Estudiante'
       await reporte.save()
       const reportePop = await populateReporte(reporte._id, 'publicacion')
       return res.status(200).json({ msg: 'Reporte rechazado', reporte: reportePop })
     }
 
-    // Resuelto: eliminar publicación con cascada
     reporte.estado = 'resuelto'
-    if (respuesta) reporte.respuesta = respuesta
-    reporte.resolvedBy = req.user._id 
-    reporte.resolvedByModel = 'Estudiante'
     await reporte.save()
 
-    const publicacion = await Publicacion.findById(reporte.meta.publicacionId)
-    if (!publicacion) {
-      const reportePop = await populateReporte(reporte._id, 'publicacion')
+    const { noExiste, autorActualizado } = await eliminarPublicacionAdminConStrike({
+      reporte,
+      redAsignada: admin.redAsignada
+    })
+
+    if (reporte.meta.publicacionId) {
+      await ReporteUnificado.updateMany(
+        {
+          _id: { $ne: reporte._id },
+          'meta.publicacionId': reporte.meta.publicacionId,
+          estado: 'pendiente'
+        },
+        {
+          $set: {
+            estado: 'resuelto',
+            resolvedBy: req.user._id,
+            resolvedByModel: 'Estudiante',
+            fechaResolucion: new Date(),
+            notaInterna: 'Cerrado automáticamente por resolución del contenido reportado.'
+          }
+        }
+      );
+    }
+
+    const reportePop = await populateReporte(reporte._id, 'publicacion')
+
+    if (noExiste) {
       return res.status(200).json({ msg: 'Reporte resuelto. La publicación no existe (posible eliminación previa)', reporte: reportePop })
     }
 
-    if (!publicacion.comunidadId || String(publicacion.comunidadId) !== String(admin.redAsignada)) {
-      return res.status(403).json({ msg: 'No estás autorizado para eliminar la publicación' })
-    }
+    const msg = autorActualizado?.strikes.length >= 5
+      ? 'Reporte resuelto. Publicación eliminada. El autor ha alcanzado 5 strikes y fue suspendido.'
+      : 'Reporte resuelto. Publicación eliminada (strike emitido).'
 
-    // Cascada
-    await Comentario.deleteMany({ postId: publicacion._id })
-
-    await Estudiante.updateMany(
-      { publicacionesGuardadas: publicacion._id },
-      { $pull: { publicacionesGuardadas: publicacion._id } }
-    )
-
-    await Publicacion.findByIdAndDelete(publicacion._id)
-
-    const reportePop = await populateReporte(reporte._id, 'publicacion')
-    return res.status(200).json({ msg: 'Reporte resuelto y publicación eliminada', reporte: reportePop })
+    return res.status(200).json({ msg, reporte: reportePop })
 
   } catch (error) {
     console.error(error)
@@ -593,53 +615,6 @@ const crearSolicitudOficializacion = async (req, res) => {
   }
 }
 
-// Crear solicitud rehabilitar
-const crearSolicitudRehabilitar = async (req, res) => {
-  try {
-    const solicitanteId = req.user?._id
-    const { redId, descripcion } = req.body
-    const red = await RedComunitaria.findById(redId)
-    if (!red) return res.status(404).json({ msg: 'Red no encontrada' })
-    const adminRelation = await AdminRed.findOne({ usuarioId: solicitanteId, redId: redId, estado: 'activo' })
-    const esCreador = red.administrador && red.administrador.equals(solicitanteId)
-    if (!adminRelation && !esCreador) return res.status(403).json({ msg: 'Solo el admin asignado de la red puede solicitar rehabilitación' })
-    if (!red.deshabilitada) return res.status(400).json({ msg: 'La red no está deshabilitada' })
-    const existePendiente = await SolicitudUnificada.findOne({ subtype: 'rehabilitar_red', 'meta.redId': redId, solicitante: solicitanteId, estado: 'pendiente' })
-    if (existePendiente) return res.status(400).json({ msg: 'Ya existe una solicitud pendiente para esta red' })
-    const nueva = await SolicitudUnificada.create({ subtype: 'rehabilitar_red', solicitante: solicitanteId, descripcion: descripcion.trim(), meta: { redId } })
-    const pop = await populateSolicitud(nueva._id, 'rehabilitar_red')
-    return res.status(201).json({ msg: 'Solicitud creada', solicitud: pop })
-  } catch (error) {
-    console.error(error)
-    return res.status(500).json({ msg: 'Error en el servidor' })
-  }
-}
-
-// Crear solicitud habilitar usuario
-const crearSolicitudHabilitarUsuario = async (req, res) => {
-  try {
-    let solicitanteId = req.user?._id
-    const { motivo, email, username } = req.body
-    let estudiante = null
-    if (solicitanteId) {
-      estudiante = await Estudiante.findById(solicitanteId).select('-password')
-    } else {
-      if (email) estudiante = await Estudiante.findOne({ email: String(email).toLowerCase() }).select('-password')
-      else if (username) estudiante = await Estudiante.findOne({ username: String(username).trim() }).select('-password')
-    }
-    if (!estudiante) return res.status(404).json({ msg: 'Usuario no encontrado' })
-    if (!estudiante.suspendido) return res.status(400).json({ msg: 'El usuario no está suspendido' })
-    solicitanteId = solicitanteId || estudiante._id
-    const existePendiente = await SolicitudUnificada.findOne({ subtype: 'habilitar_usuario', solicitante: solicitanteId, estado: 'pendiente' })
-    if (existePendiente) return res.status(400).json({ msg: 'Ya existe una solicitud pendiente' })
-    const nueva = await SolicitudUnificada.create({ subtype: 'habilitar_usuario', solicitante: solicitanteId, descripcion: motivo.trim(), meta: {} })
-    const pop = await populateSolicitud(nueva._id, 'habilitar_usuario')
-    return res.status(201).json({ msg: 'Solicitud creada', solicitud: pop })
-  } catch (error) {
-    console.error(error)
-    return res.status(500).json({ msg: 'Error en el servidor' })
-  }
-}
 
 // Listar solicitudes del admin logueado por subtype
 const listarMisSolicitudes = async (req, res) => {
@@ -659,86 +634,6 @@ const listarMisSolicitudes = async (req, res) => {
   }
 }
 
-const deleteSolicitudRehabilitarByAdmin = async (req, res) => {
-  try {
-    const { id } = req.params
-    const adminId = req.user?._id
-    const sol = await SolicitudUnificada.findById(id)
-    if (!sol || sol.subtype !== 'rehabilitar_red') return res.status(404).json({ msg: 'Solicitud no encontrada' })
-    if (String(sol.solicitante) !== String(adminId)) return res.status(403).json({ msg: 'No estás autorizado para eliminar esta solicitud' })
-    await SolicitudUnificada.findByIdAndDelete(id)
-    return res.status(200).json({ msg: 'Solicitud eliminada' })
-  } catch (error) {
-    console.error(error)
-    return res.status(500).json({ msg: 'Error en el servidor' })
-  }
-}
-
-// Resolve solicitud rehabilitar (superadmin)
-const resolverSolicitudRehabilitar = async (req, res) => {
-  try {
-    const { id } = req.params
-    const { accion, respuesta } = req.body
-    if (!['Aprobar','Rechazar'].includes(accion)) return res.status(400).json({ msg: 'Acción inválida. Solo "Aprobar" o "Rechazar"' })
-    const solicitud = await SolicitudUnificada.findById(id)
-    if (!solicitud || solicitud.subtype !== 'rehabilitar_red') return res.status(404).json({ msg: 'Solicitud no encontrada' })
-    if (solicitud.estado === 'aprobada') return res.status(400).json({ msg: 'La solicitud ya fue aprobada' })
-    const red = await RedComunitaria.findById(solicitud.meta.redId)
-    if (!red) return res.status(404).json({ msg: 'Red no encontrada' })
-    if (accion === 'Rechazar') {
-      solicitud.estado = 'rechazada'
-      if (respuesta) solicitud.respuesta = respuesta
-      solicitud.resolvedBy = req.user._id
-      await solicitud.save()
-      const pop = await populateSolicitud(solicitud._id, 'rehabilitar_red')
-      return res.status(200).json({ msg: 'Solicitud rechazada', solicitud: pop })
-    }
-    red.deshabilitada = false
-    await red.save()
-    solicitud.estado = 'aprobada'
-    if (respuesta) solicitud.respuesta = respuesta
-    solicitud.resolvedBy = req.user._id
-    await solicitud.save()
-    const pop = await populateSolicitud(solicitud._id, 'rehabilitar_red')
-    return res.status(200).json({ msg: 'Solicitud aprobada. Red reactivada', solicitud: pop })
-  } catch (error) {
-    console.error(error)
-    return res.status(500).json({ msg: 'Error en el servidor' })
-  }
-}
-
-// Resolve solicitud habilitar usuario (superadmin)
-const resolverSolicitudHabilitarUsuario = async (req, res) => {
-  try {
-    const { id } = req.params
-    const { accion, respuesta } = req.body
-    if (!['Aprobar','Rechazar'].includes(accion)) return res.status(400).json({ msg: 'Acción inválida. Solo "Aprobar" o "Rechazar"' })
-    const solicitud = await SolicitudUnificada.findById(id)
-    if (!solicitud || solicitud.subtype !== 'habilitar_usuario') return res.status(404).json({ msg: 'Solicitud no encontrada' })
-    if (solicitud.estado === 'aprobada') return res.status(400).json({ msg: 'La solicitud ya fue aprobada' })
-    const estudiante = await Estudiante.findById(solicitud.solicitante)
-    if (!estudiante) return res.status(404).json({ msg: 'Estudiante no encontrado' })
-    if (accion === 'Rechazar') {
-      solicitud.estado = 'rechazada'
-      if (respuesta) solicitud.respuesta = respuesta
-      solicitud.resolvedBy = req.user._id 
-      await solicitud.save()
-      const pop = await SolicitudUnificada.findById(solicitud._id).populate('solicitante', 'nombre apellido fotoPerfil email suspendido').populate('resolvedBy', 'nombre apellido rol')
-      return res.status(200).json({ msg: 'Solicitud rechazada', solicitud: pop })
-    }
-    estudiante.suspendido = false
-    await estudiante.save()
-    solicitud.estado = 'aprobada'
-    if (respuesta) solicitud.respuesta = respuesta
-    solicitud.resolvedBy = req.user._id 
-    await solicitud.save()
-    const pop = await SolicitudUnificada.findById(solicitud._id).populate('solicitante', 'nombre apellido fotoPerfil email suspendido').populate('resolvedBy', 'nombre apellido rol')
-    return res.status(200).json({ msg: 'Solicitud aprobada. Usuario habilitado', solicitud: pop })
-  } catch (error) {
-    console.error(error)
-    return res.status(500).json({ msg: 'Error en el servidor' })
-  }
-}
 
 // Resolve solicitud verificacion (superadmin)
 const resolverSolicitudVerificacion = async (req, res) => {
@@ -997,17 +892,21 @@ const resolverSolicitudPostularAdminRed = async (req, res) => {
     const { id } = req.params
     const { accion, respuesta } = req.body
 
-    if (!['Aprobar', 'Rechazar'].includes(accion)) return res.status(400).json({ msg: 'Acción inválida. Solo "Aprobar" o "Rechazar"' })
+    if (!['Aprobar', 'Rechazar'].includes(accion))
+      return res.status(400).json({ msg: 'Acción inválida. Solo "Aprobar" o "Rechazar"' })
 
     const solicitud = await SolicitudUnificada.findById(id)
-    if (!solicitud || solicitud.subtype !== 'postular_admin_red') return res.status(404).json({ msg: 'Solicitud no encontrada' })
-    if (solicitud.estado !== 'pendiente') return res.status(400).json({ msg: 'La solicitud ya fue resuelta' })
+    if (!solicitud || solicitud.subtype !== 'postular_admin_red')
+      return res.status(404).json({ msg: 'Solicitud no encontrada' })
+
+    if (solicitud.estado !== 'pendiente')
+      return res.status(400).json({ msg: 'La solicitud ya fue resuelta' })
 
     const red = await RedComunitaria.findById(solicitud.meta.redId)
     if (!red) return res.status(404).json({ msg: 'Red no encontrada' })
 
-    // Verificar que la red siga sin admin al momento de resolver
-    if (red.administrador) return res.status(400).json({ msg: 'La red ya tiene un administrador asignado' })
+    if (red.administrador)
+      return res.status(400).json({ msg: 'La red ya tiene un administrador asignado' })
 
     const user = await Estudiante.findById(solicitud.solicitante)
     if (!user) return res.status(404).json({ msg: 'Usuario no encontrado' })
@@ -1022,93 +921,19 @@ const resolverSolicitudPostularAdminRed = async (req, res) => {
     }
 
     // Aprobar
+    await aprobarPostulacionAdminRed({
+      solicitud,
+      red,
+      user,
+      emisorId: req.user?._id || null
+    })
 
-    // Añadir rol admin_red si no lo tiene
-    if (!Array.isArray(user.roles)) user.roles = []
-    if (!user.roles.includes('admin_red')) {
-      user.roles.push('admin_red')
-      await user.save()
-    }
-
-    // Añadir red a user.redComunitaria si no está
-    if (!Array.isArray(user.redComunitaria)) user.redComunitaria = []
-    if (!user.redComunitaria.some(rid => rid.toString() === red._id.toString())) {
-      user.redComunitaria.push(red._id)
-      await user.save()
-    }
-
-    // Crear o reactivar relación en AdminRed
-    const existeRel = await AdminRed.findOne({ usuarioId: user._id, redId: red._id })
-    if (!existeRel) {
-      await AdminRed.create({
-        usuarioId: user._id,
-        redId: red._id,
-        estado: 'activo',
-        permisos: ['gestion_publicaciones', 'gestionar_miembros'],
-        fechaAprobacion: new Date()
-      })
-    } else {
-      if (existeRel.estado !== 'activo') {
-        existeRel.estado = 'activo'
-        existeRel.fechaAprobacion = new Date()
-        await existeRel.save()
-      }
-    }
-
-    // Asignar como nuevo admin de la red
-    red.administrador = user._id
-    if (!red.miembros.some(mid => mid.toString() === user._id.toString())) {
-      red.miembros.push(user._id)
-      red.cantidadMiembros = red.miembros.length
-    }
-    await red.save()
-
-    // Rechazar automáticamente las demás postulaciones pendientes para esta red
-    await SolicitudUnificada.updateMany(
-      {
-        subtype: 'postular_admin_red',
-        'meta.redId': red._id,
-        estado: 'pendiente',
-        _id: { $ne: solicitud._id }
-      },
-      {
-        estado: 'rechazada',
-        respuesta: 'Se seleccionó otro administrador para la red'
-      }
-    )
-
-    // Resolver la solicitud
     solicitud.estado = 'aprobada'
     if (respuesta) solicitud.respuesta = respuesta
     solicitud.resolvedBy = req.user._id
     await solicitud.save()
 
-    // Notificar al nuevo admin
-    const emisorIdVal = req.user?._id || null
-    const notificacion = await crearNotificacion({
-      usuarioId: user._id,
-      emisorId: emisorIdVal,
-      tipo: 'mensaje',
-      mensaje: `Tu postulación fue aprobada. Ahora eres administrador de la red ${red.nombre}`
-    })
-
-    let emisorData = null
-    if (emisorIdVal) {
-      emisorData = await Estudiante.findById(emisorIdVal).select('nombre apellido username fotoPerfil').lean()
-    }
-
-    await triggerUserChannel(user._id.toString(), 'nueva_notificacion', {
-      _id: notificacion._id.toString(),
-      tipo: notificacion.tipo,
-      emisorSnap: emisorData,
-      mensaje: notificacion.mensaje,
-      leida: false,
-      createdAt: notificacion.createdAt,
-      updatedAt: notificacion.updatedAt
-    })
-
     const pop = await populateSolicitud(solicitud._id, 'postular_admin_red')
-
     return res.status(200).json({ msg: 'Postulación aprobada. Nuevo administrador asignado', solicitud: pop })
 
   } catch (error) {
@@ -1132,7 +957,70 @@ const listarSolicitudes = async (req, res) => {
   }
 }
 
+const obtenerStrikesUsuario = async (req, res) => {
+  try {
+    const usuario = await Estudiante.findById(req.params.id)
+      .select('nombre apellido username strikes suspendido')
+      .populate('strikes.reporteId', 'descripcion subtype createdAt')
+      .lean()
+    if (!usuario) return res.status(404).json({ msg: 'Usuario no encontrado' })
+    res.json(usuario)
+  } catch (error) {
+    res.status(500).json({ msg: 'Error al obtener strikes' })
+  }
+}
+
+const eliminarStrikeUsuario = async (req, res) => {
+  try {
+    const { id, strikeId } = req.params
+    const updated = await Estudiante.findByIdAndUpdate(
+      id,
+      { $pull: { strikes: { _id: strikeId } } },
+      { new: true }
+    )
+    if (!updated) return res.status(404).json({ msg: 'Usuario no encontrado' })
+
+    res.json({ msg: 'Strike eliminado', strikesRestantes: updated.strikes.length })
+  } catch (error) {
+    res.status(500).json({ msg: 'Error al eliminar strike' })
+  }
+}
+
+const obtenerStrikesRed = async (req, res) => {
+  try {
+    const red = await RedComunitaria.findById(req.params.id)
+      .select('nombre strikes deshabilitada')
+      .lean()
+    if (!red) return res.status(404).json({ msg: 'Red no encontrada' })
+    res.json(red)
+  } catch (error) {
+    res.status(500).json({ msg: 'Error al obtener strikes de red' })
+  }
+}
+
+const eliminarStrikeRed = async (req, res) => {
+  try {
+    const { id, strikeId } = req.params
+    const updated = await RedComunitaria.findByIdAndUpdate(
+      id,
+      { $pull: { strikes: { _id: strikeId } } },
+      { new: true }
+    )
+    if (!updated) return res.status(404).json({ msg: 'Red no encontrada' })
+    if (updated.strikes.length < 5 && updated.deshabilitada) {
+      await RedComunitaria.findByIdAndUpdate(id, { deshabilitada: false })
+    }
+    res.json({ msg: 'Strike eliminado', strikesRestantes: updated.strikes.length })
+  } catch (error) {
+    res.status(500).json({ msg: 'Error al eliminar strike de red' })
+  }
+}
+
 export {
+  obtenerStrikesUsuario,
+  eliminarStrikeUsuario,
+  obtenerStrikesRed,
+  eliminarStrikeRed,
   crearReportePublicacion,
   crearReporteRed,
   crearReporteApp,
@@ -1145,13 +1033,8 @@ export {
   listarReportesAdminRed,
   crearSolicitudVerificacion,
   resolverSolicitudVerificacion,
-  crearSolicitudRehabilitar,
   deleteSolicitudPorId,
   deleteReportePorId,
-  resolverSolicitudRehabilitar,
-  crearSolicitudHabilitarUsuario,
-  resolverSolicitudHabilitarUsuario,
-  deleteSolicitudRehabilitarByAdmin,
   listarMisSolicitudes,
   crearSolicitudRevocarAdminRed,
   resolverSolicitudRevocarAdminRed,

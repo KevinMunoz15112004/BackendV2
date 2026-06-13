@@ -425,8 +425,8 @@ const actualizarPasswordEstudiante = async (req, res) => {
 
 const obtenerRedesComunitarias = async (req, res) => {
   try {
-    // Excluir redes globales del listado general
-    const redes = await RedComunitaria.find({ esGlobal: { $ne: true } })
+    // Excluir redes globales y solo incluir las aprobadas
+    const redes = await RedComunitaria.find({ esGlobal: { $ne: true }, estadoAprobacion: 'aprobada' })
       .select('nombre descripcion cantidadMiembros esOficial esVerificada fotoPerfil')
       .lean()
 
@@ -757,7 +757,7 @@ const listarPublicacionesComunidades = async (req, res) => {
   try {
     const { page = 1, limit = 10 } = req.query
 
-    const comunidades = await RedComunitaria.find({ esGlobal: { $ne: true } }).select('_id')
+    const comunidades = await RedComunitaria.find({ esGlobal: { $ne: true }, estadoAprobacion: 'aprobada' }).select('_id')
     const comunidadIds = comunidades.map(c => c._id)
 
     const pageNumber = Math.max(parseInt(page, 10) || 1, 1)
@@ -938,7 +938,7 @@ const listarArticulosComunidades = async (req, res) => {
   try {
     const { page = 1, limit = 10 } = req.query
 
-    const comunidades = await RedComunitaria.find({ esGlobal: { $ne: true } }).select('_id')
+    const comunidades = await RedComunitaria.find({ esGlobal: { $ne: true }, estadoAprobacion: 'aprobada' }).select('_id')
     const comunidadIds = comunidades.map(c => c._id)
 
     const pageNumber = Math.max(parseInt(page, 10) || 1, 1)

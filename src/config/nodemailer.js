@@ -181,4 +181,41 @@ const sendMailRedRechazada = async (userMail, redName) => {
     }
 }
 
-export { sendMailRedAprobada, sendMailRedRechazada }
+
+const sendMailApelacionAprobada = async (userMail, notaResolucion) => {
+    try {
+        let info = await transporter.sendMail({
+            from: `"PoliRed" <${process.env.USER_MAILTRAP}>`,
+            to: userMail,
+            subject: 'Tu apelación ha sido aprobada - PoliRed',
+            html: generarPlantillaHTML(
+                'Cuenta reactivada',
+                `<p>Tu apelación ha sido aprobada. Tu cuenta ha sido reactivada.</p>
+                 <p>Nota del administrador: ${notaResolucion}</p>`
+            )
+        });
+        console.log(`Correo de apelación aprobada enviado a ${userMail}:`, info.messageId);
+    } catch (error) {
+        console.error('Error al enviar correo de apelación aprobada:', error);
+    }
+}
+
+const sendMailApelacionRechazada = async (userMail, notaResolucion) => {
+    try {
+        let info = await transporter.sendMail({
+            from: `"PoliRed" <${process.env.USER_MAILTRAP}>`,
+            to: userMail,
+            subject: 'Tu apelación ha sido rechazada - PoliRed',
+            html: generarPlantillaHTML(
+                'Apelación rechazada',
+                `<p>Tu apelación ha sido rechazada.</p>
+                 <p>Nota del administrador: ${notaResolucion}</p>`
+            )
+        });
+        console.log(`Correo de apelación rechazada enviado a ${userMail}:`, info.messageId);
+    } catch (error) {
+        console.error('Error al enviar correo de apelación rechazada:', error);
+    }
+}
+
+export { sendMailRedAprobada, sendMailRedRechazada, sendMailApelacionAprobada, sendMailApelacionRechazada }

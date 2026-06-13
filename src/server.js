@@ -10,6 +10,7 @@ import authRoutes from './routers/authRoutes.js'
 import adminRedes from './routers/adminRedRoutes.js'
 import socialRoutes from './routers/socialRoutes.js'
 import mensajesRoutes from './routers/mensajesRoutes.js'
+import apelacionRoutes from './routers/apelacionRoutes.js'
 
 dotenv.config()
 
@@ -38,6 +39,7 @@ app.use('/api', adminRedes)
 app.use('/api', estudiantesRoutes)
 app.use('/api', socialRoutes)
 app.use('/api', mensajesRoutes)
+app.use('/api', apelacionRoutes)
 
 app.get('/', (req, res) => {
     res.send({
