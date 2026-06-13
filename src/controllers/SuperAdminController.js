@@ -213,10 +213,25 @@ const perfil = (req, res) => {
 
 const obtenerEstudiantes = async (req, res) => {
   try {
-    const estudiantes = await Estudiante.find()
-      .populate('redComunitaria', 'nombre')
+    const { page = '1', limit = '20' } = req.query
+    const parsedPage = Math.max(parseInt(page, 10) || 1, 1)
+    const parsedLimit = Math.max(parseInt(limit, 10) || 20, 1)
+    const skip = (parsedPage - 1) * parsedLimit
 
-    res.json(estudiantes);
+    const [estudiantes, total] = await Promise.all([
+      Estudiante.find()
+        .populate('redComunitaria', 'nombre')
+        .skip(skip)
+        .limit(parsedLimit),
+      Estudiante.countDocuments()
+    ])
+
+    res.json({
+      page: parsedPage,
+      total,
+      hasMore: skip + estudiantes.length < total,
+      estudiantes
+    })
   } catch (error) {
     console.error('Error al obtener estudiantes:', error)
     res.status(500).json({ msg: 'Error al obtener estudiantes' })
