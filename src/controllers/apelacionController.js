@@ -116,6 +116,7 @@ const resolverApelacion = async (req, res) => {
         const red = await RedComunitaria.findById(apelacion.redId)
         if (red) {
           red.deshabilitada = false
+          red.strikes = []
           await red.save()
         }
       }
