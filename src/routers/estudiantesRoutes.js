@@ -1,5 +1,5 @@
 import {Router} from 'express'
-import { registroEstudiante, confirmarMailEstudiante, comprobarTokenPasswordEstudiante, recuperarPasswordEstudiante, crearNuevoPasswordEstudiante, perfilEstudiante, actualizarUsername, completarPerfil, actualizarPerfilEstudiante, actualizarPasswordEstudiante, crearPublicacion, unirseARedComunitaria, salirseDeRedComunitaria, listarRedesDelEstudiante, listarPublicacionesPorRed, listarPublicacionesGlobal, listarPublicacionesComunidades, obtenerRedesComunitarias, obtenerPerfilRed, publicarArticulo, listarArticulosPorRed, listarArticulosGlobal, listarArticulosComunidades, eliminarArticulo, eliminarPublicacion, obtenerEstudiantes, obtenerPerfilPublicoInfo, obtenerPerfilPublicoFeed } 
+import { registroEstudiante, confirmarMailEstudiante, comprobarTokenPasswordEstudiante, recuperarPasswordEstudiante, crearNuevoPasswordEstudiante, perfilEstudiante, actualizarUsername, completarPerfil, actualizarPerfilEstudiante, actualizarPasswordEstudiante, crearPublicacion, unirseARedComunitaria, salirseDeRedComunitaria, listarRedesDelEstudiante, listarPublicacionesPorRed, listarPublicacionesGlobal, listarPublicacionesComunidades, obtenerRedesComunitarias, obtenerPerfilRed, publicarArticulo, listarArticulosGlobal, listarArticulosComunidades, eliminarArticulo, eliminarPublicacion, obtenerEstudiantes, obtenerPerfilPublicoInfo, obtenerPerfilPublicoFeed } 
 from '../controllers/estudiantesController.js'
 import { requirePerfilCompleto, disallowPerfilCompleto } from '../middlewares/checkPerfilCompleto.js'
 import { verifyToken, optionalVerifyToken } from '../middlewares/auth.js'
@@ -26,7 +26,6 @@ router.post('/estudiantes/publicaciones', verifyToken, requirePerfilCompleto, va
 router.delete('/publicaciones/eliminar/:id', verifyToken, requirePerfilCompleto, validators.mongoIdParam('id'), validateResult, eliminarPublicacion)
 router.get('/publicaciones/red/:redId', verifyToken, requirePerfilCompleto, validators.mongoIdParam('redId'), validateResult, listarPublicacionesPorRed)
 router.post('/publicaciones/articulos', verifyToken, requirePerfilCompleto, validators.publicarArticuloValidator, validateResult, publicarArticulo)
-router.get('/publicaciones/articulos/listar/:redId', verifyToken, requirePerfilCompleto, validators.mongoIdParam('redId'), validateResult, listarArticulosPorRed)
 router.get('/publicaciones/articulos/global', verifyToken, requirePerfilCompleto, listarArticulosGlobal)
 router.get('/publicaciones/articulos/comunitarias', verifyToken, requirePerfilCompleto, listarArticulosComunidades)
 router.delete('/publicaciones/articulo/eliminar/:id', verifyToken, requirePerfilCompleto, validators.mongoIdParam('id'), validateResult, eliminarArticulo)

@@ -425,10 +425,19 @@ const actualizarPasswordEstudiante = async (req, res) => {
 
 const obtenerRedesComunitarias = async (req, res) => {
   try {
-    // Excluir redes globales y solo incluir las aprobadas
-    const redes = await RedComunitaria.find({ esGlobal: { $ne: true }, estadoAprobacion: 'aprobada' })
-      .select('nombre descripcion cantidadMiembros esOficial esVerificada fotoPerfil')
-      .lean()
+    const { page = '1', limit = '20' } = req.query
+    const parsedPage = Math.max(parseInt(page, 10) || 1, 1)
+    const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50)
+    const skip = (parsedPage - 1) * parsedLimit
+
+    const [redes, total] = await Promise.all([
+      RedComunitaria.find({ esGlobal: { $ne: true }, estadoAprobacion: 'aprobada' })
+        .select('nombre descripcion cantidadMiembros esOficial esVerificada fotoPerfil')
+        .skip(skip)
+        .limit(parsedLimit)
+        .lean(),
+      RedComunitaria.countDocuments({ esGlobal: { $ne: true }, estadoAprobacion: 'aprobada' })
+    ])
 
     const salida = redes.map(r => ({
       id: r._id,
@@ -440,7 +449,12 @@ const obtenerRedesComunitarias = async (req, res) => {
       fotoPerfil: r.fotoPerfil || null
     }))
 
-    res.status(200).json(salida)
+    res.status(200).json({
+      page: parsedPage,
+      total,
+      hasMore: skip + redes.length < total,
+      redes: salida
+    })
   } catch (error) {
     console.error('Error al obtener redes comunitarias:', error)
     res.status(500).json({ msg: 'Error del servidor' })
@@ -491,23 +505,34 @@ const unirseARedComunitaria = async (req, res) => {
   }
 }
 
-
 const listarRedesDelEstudiante = async (req, res) => {
   try {
-    const estudianteId = req.user?._id
+    const { page = '1', limit = '20' } = req.query
+    const parsedPage = Math.max(parseInt(page, 10) || 1, 1)
+    const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50)
+    const skip = (parsedPage - 1) * parsedLimit
 
+    const estudianteId = req.user?._id
     const estudiante = await Estudiante.findById(estudianteId)
       .populate({ path: 'redComunitaria', select: 'nombre descripcion fotoPerfil esVerificada esOficial', ...(populateExcludeGlobalMatch()) })
 
     if (!estudiante) {
-      return res.status(404).json({ msg: "Estudiante no encontrado" })
+      return res.status(404).json({ msg: 'Estudiante no encontrado' })
     }
 
-    const filteredRedes = (estudiante.redComunitaria || []).filter(Boolean);
-    res.status(200).json({ redes: filteredRedes })
+    const filteredRedes = (estudiante.redComunitaria || []).filter(Boolean)
+    const total = filteredRedes.length
+    const redes = filteredRedes.slice(skip, skip + parsedLimit)
+
+    res.status(200).json({
+      page: parsedPage,
+      total,
+      hasMore: skip + redes.length < total,
+      redes
+    })
   } catch (error) {
     console.error(error)
-    res.status(500).json({ msg: "Error del servidor" })
+    res.status(500).json({ msg: 'Error del servidor' })
   }
 }
 
@@ -966,34 +991,6 @@ const listarArticulosComunidades = async (req, res) => {
   }
 }
 
-const listarArticulosPorRed = async (req, res) => {
-  try {
-    const { redId } = req.params
-
-    // `redId` validado por validators en rutas
-
-    const redExiste = await RedComunitaria.findById(redId)
-    if (!redExiste) {
-      return res.status(404).json({ msg: 'Red comunitaria no encontrada' })
-    }
-
-    const articulos = await Articulo.find({ redComunitaria: redId })
-      .populate('autorId', 'nombre apellido fotoPerfil')
-      .populate('redComunitaria', 'nombre')
-      .sort({ timestamp: -1 })
-
-    return res.status(200).json({
-      msg: articulos.length > 0
-        ? 'Artículos encontrados'
-        : 'Aún no hay artículos publicados en esta red',
-      articulos
-    })
-  } catch (error) {
-    console.error('Error al listar artículos por red:', error)
-    return res.status(500).json({ msg: 'Error en el servidor' })
-  }
-}
-
 const eliminarArticulo = async (req, res) => {
   try {
     const { id } = req.params
@@ -1210,7 +1207,6 @@ export {
   crearPublicacion,
   eliminarPublicacion,
   publicarArticulo,
-  listarArticulosPorRed,
   eliminarArticulo,
   listarArticulosGlobal,
   listarArticulosComunidades,
