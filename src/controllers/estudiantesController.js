@@ -507,32 +507,20 @@ const unirseARedComunitaria = async (req, res) => {
 
 const listarRedesDelEstudiante = async (req, res) => {
   try {
-    const { page = '1', limit = '20' } = req.query
-    const parsedPage = Math.max(parseInt(page, 10) || 1, 1)
-    const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50)
-    const skip = (parsedPage - 1) * parsedLimit
-
     const estudianteId = req.user?._id
+
     const estudiante = await Estudiante.findById(estudianteId)
       .populate({ path: 'redComunitaria', select: 'nombre descripcion fotoPerfil esVerificada esOficial', ...(populateExcludeGlobalMatch()) })
 
     if (!estudiante) {
-      return res.status(404).json({ msg: 'Estudiante no encontrado' })
+      return res.status(404).json({ msg: "Estudiante no encontrado" })
     }
 
-    const filteredRedes = (estudiante.redComunitaria || []).filter(Boolean)
-    const total = filteredRedes.length
-    const redes = filteredRedes.slice(skip, skip + parsedLimit)
-
-    res.status(200).json({
-      page: parsedPage,
-      total,
-      hasMore: skip + redes.length < total,
-      redes
-    })
+    const filteredRedes = (estudiante.redComunitaria || []).filter(Boolean);
+    res.status(200).json({ redes: filteredRedes })
   } catch (error) {
     console.error(error)
-    res.status(500).json({ msg: 'Error del servidor' })
+    res.status(500).json({ msg: "Error del servidor" })
   }
 }
 
