@@ -31,13 +31,13 @@ Este repositorio muestra el componente Backend completamente desarrollado con su
 
 Para clonar este respositorio se lo hace mediante:
 
-<pre>git clone https://github.com/KevinMunoz15112004/BackendV2</pre>
+<pre>git clone https://github.com/KevinMunoz15112004/PoliRed</pre>
 
 Este backend fue desplegado en Vercel, se puede acceder mediante la siguiente URL:
-<pre>proximamente</pre>
+<pre>https://polired-api.vercel.app/</pre>
 
 La documentación de cada uno de los endpoints se encuentra en:
-<pre>https://documenter.getpostman.com/view/45783834/2sB2x6nCWY</pre>
+<pre>https://documenter.getpostman.com/view/45783834/2sBXwqqAF5</pre>
 
 ---
 

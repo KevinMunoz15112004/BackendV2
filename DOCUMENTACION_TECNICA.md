@@ -26,6 +26,7 @@ PoliRed/
   │  └─ cloudinary.js
   ├─ controllers/
   │  ├─ adminRedController.js
+  │  ├─ apelacionController.js
   │  ├─ authController.js
   │  ├─ estudiantesController.js
   │  ├─ mensajesController.js
@@ -34,6 +35,7 @@ PoliRed/
   │  └─ SuperAdminController.js
   ├─ models/
   │  ├─ adminRedes.js
+  │  ├─ Apelaciones.js
   │  ├─ Articulos.js
   │  ├─ Comentarios.js
   │  ├─ Conversaciones.js
@@ -47,6 +49,7 @@ PoliRed/
   │  └─ SuperAdmin.js
   ├─ routers/
   │  ├─ adminRedRoutes.js
+  │  ├─ apelacionRoutes.js
   │  ├─ authRoutes.js
   │  ├─ estudiantesRoutes.js
   │  ├─ mensajesRoutes.js
@@ -59,11 +62,14 @@ PoliRed/
   ├─ helpers/
   │  ├─ globalRed.js
   │  ├─ notificaciones.js
-  │  └─ postResolver.js
+  │  ├─ postResolver.js
+  │  └─ reportHelpers.js
   ├─ services/
   │  ├─ cloudinaryService.js
   │  ├─ mediaService.js
-  │  └─ profileService.js
+  │  ├─ profileService.js
+  │  ├─ redService.js
+  │  └─ reportesService.js
   ├─ validators/
   │  ├─ authValidators.js
   │  ├─ commonValidators.js
@@ -74,7 +80,22 @@ PoliRed/
   │  ├─ reportValidators.js
   │  ├─ stringValidators.js
   │  └─ validateResult.js
-  └─ tests/
+  ├─ tests/
+  │  ├─ e2e/
+  │  │  ├─ 01_auth.test.js
+  │  │  ├─ 02_estudiantes.test.js
+  │  │  ├─ 03_redesComunitarias.test.js
+  │  │  ├─ 04_social.test.js
+  │  │  └─ 05_moderacion.test.js
+  │  ├─ helpers/
+  │  │  ├─ authHelpers.js
+  │  │  ├─ seeders.js
+  │  │  ├─ setupDB.js
+  │  │  └─ setupMocks.js  
+  │  ├─ unit/
+  │  │  ├─ middlewares.test.js
+  │  │  └─ validators.test.js  
+
 ```
 
 Información relevante:
