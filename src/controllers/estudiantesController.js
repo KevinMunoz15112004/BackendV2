@@ -425,19 +425,9 @@ const actualizarPasswordEstudiante = async (req, res) => {
 
 const obtenerRedesComunitarias = async (req, res) => {
   try {
-    const { page = '1', limit = '20' } = req.query
-    const parsedPage = Math.max(parseInt(page, 10) || 1, 1)
-    const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50)
-    const skip = (parsedPage - 1) * parsedLimit
-
-    const [redes, total] = await Promise.all([
-      RedComunitaria.find({ esGlobal: { $ne: true }, estadoAprobacion: 'aprobada' })
-        .select('nombre descripcion cantidadMiembros esOficial esVerificada fotoPerfil')
-        .skip(skip)
-        .limit(parsedLimit)
-        .lean(),
-      RedComunitaria.countDocuments({ esGlobal: { $ne: true }, estadoAprobacion: 'aprobada' })
-    ])
+    const redes = await RedComunitaria.find({ esGlobal: { $ne: true }, estadoAprobacion: 'aprobada' })
+      .select('nombre descripcion cantidadMiembros esOficial esVerificada fotoPerfil')
+      .lean()
 
     const salida = redes.map(r => ({
       id: r._id,
@@ -449,12 +439,7 @@ const obtenerRedesComunitarias = async (req, res) => {
       fotoPerfil: r.fotoPerfil || null
     }))
 
-    res.status(200).json({
-      page: parsedPage,
-      total,
-      hasMore: skip + redes.length < total,
-      redes: salida
-    })
+    res.status(200).json({ redes: salida })
   } catch (error) {
     console.error('Error al obtener redes comunitarias:', error)
     res.status(500).json({ msg: 'Error del servidor' })

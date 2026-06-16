@@ -499,6 +499,8 @@ const crearSolicitudVerificacion = async (req, res) => {
     if (solicitudPendiente) return res.status(400).json({ msg: 'Ya existe una solicitud de verificación pendiente para esta red' })
 
     if (red.esVerificada) return res.status(400).json({ msg: 'La red ya es verificada' })
+    
+    if (red.esOficial) return res.status(400).json({ msg: 'La red ya es oficial, no puede solicitar verificación' })
 
     if (nombreRed?.trim() !== red.nombre)
       return res.status(400).json({ msg: 'El nombre de la red no coincide con el registrado' })
@@ -563,6 +565,8 @@ const crearSolicitudOficializacion = async (req, res) => {
     if (solicitudPendiente) return res.status(400).json({ msg: 'Ya existe una solicitud de oficialización pendiente para esta red' })
 
     if (red.esOficial) return res.status(400).json({ msg: 'La red ya es oficial' })
+
+    if (red.esVerificada) return res.status(400).json({ msg: 'La red ya es verificada, no puede solicitar oficialización' })
 
     if (nombreRed?.trim() !== red.nombre)
       return res.status(400).json({ msg: 'El nombre de la red no coincide con el registrado' })
