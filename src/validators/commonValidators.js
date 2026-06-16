@@ -21,6 +21,18 @@ const normalizeEmail = (field = 'email', { optional = false } = {}) => {
     .normalizeEmail()
     .toLowerCase()
     .isEmail().withMessage('El email no tiene un formato válido')
+}
+
+const emailEstudiantes = (field = 'email', { optional = false } = {}) => {
+  const chain = body(field)
+  return (optional ? chain.optional() : chain.exists().withMessage('El email es obligatorio'))
+    .bail()
+    .isString().withMessage('El email debe ser un texto')
+    .bail()
+    .trim()
+    .normalizeEmail()
+    .toLowerCase()
+    .isEmail().withMessage('El email no tiene un formato válido')
     .bail()
     .custom(value => {
       if (!value.endsWith('@epn.edu.ec')) {
@@ -62,5 +74,5 @@ const numberField = (field = 'number', { optional = false, min, max, integer = f
 
 
 
-export { trimAndNotEmpty, normalizeEmail, passwordField, booleanBody, numberField }
+export { trimAndNotEmpty, normalizeEmail, passwordField, booleanBody, numberField, emailEstudiantes }
 

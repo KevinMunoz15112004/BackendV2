@@ -10,9 +10,9 @@ import { crearReporteRed, crearSolicitudPostularAdminRed } from '../controllers/
 const router = Router()
 
 //Rutas para la gestión de la cuenta
-router.post('/registro-estudiantes', validators.name('nombre'), validators.name('apellido'), validators.normalizeEmail('email'), validators.passwordField('password'), validateResult, registroEstudiante)
+router.post('/registro-estudiantes', validators.name('nombre'), validators.name('apellido'), validators.emailEstudiantes('email'), validators.passwordField('password'), validateResult, registroEstudiante)
 router.get('/confirmar/:token', validators.tokenParam('token'), validateResult, confirmarMailEstudiante)
-router.post('/recuperar-password-e', validators.normalizeEmail('email'), validateResult, recuperarPasswordEstudiante)
+router.post('/recuperar-password-e', validators.emailEstudiantes('email'), validateResult, recuperarPasswordEstudiante)
 router.get('/recuperar-password-e/:token', validators.tokenParam('token'), validateResult, comprobarTokenPasswordEstudiante)
 router.post('/nuevo-password-e/:token', validators.crearNuevoPasswordValidator, validateResult, crearNuevoPasswordEstudiante)
 router.get('/perfil-estudiante', verifyToken, requirePerfilCompleto, perfilEstudiante)
