@@ -5,7 +5,13 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:e2e:auth": "cross-env NODE_OPTIONS=--experimental-vm-modules jest src/tests/e2e/01_auth.test.js --runInBand",
+    "test:e2e:estudiantes": "cross-env NODE_OPTIONS=--experimental-vm-modules jest src/tests/e2e/02_estudiantes.test.js --runInBand",
+    "test:e2e:redes": "cross-env NODE_OPTIONS=--experimental-vm-modules jest src/tests/e2e/03_redesComunitarias.test.js --runInBand",
+    "test:e2e:social": "cross-env NODE_OPTIONS=--experimental-vm-modules jest src/tests/e2e/04_social.test.js --runInBand",
+    "test:e2e:moderacion": "cross-env NODE_OPTIONS=--experimental-vm-modules jest src/tests/e2e/05_moderacion.test.js --runInBand",
+    "test:unit:middleware": "cross-env NODE_OPTIONS=--experimental-vm-modules NODE_NO_WARNINGS=1 jest src/tests/unit/middlewares.test.js",
+    "test:unit:validators": "cross-env NODE_OPTIONS=--experimental-vm-modules NODE_NO_WARNINGS=1 jest src/tests/unit/validators.test.js",
     "start": "node src/index.js",
     "dev": "node --watch src/local.js"
   },

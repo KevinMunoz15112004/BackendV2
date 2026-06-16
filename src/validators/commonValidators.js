@@ -21,6 +21,13 @@ const normalizeEmail = (field = 'email', { optional = false } = {}) => {
     .normalizeEmail()
     .toLowerCase()
     .isEmail().withMessage('El email no tiene un formato válido')
+    .bail()
+    .custom(value => {
+      if (!value.endsWith('@epn.edu.ec')) {
+        throw new Error('El email debe ser del dominio @epn.edu.ec')
+      }
+      return true
+    })
 }
 
 const passwordField = (field = 'password', { optional = false, min = 8 } = {}) => {

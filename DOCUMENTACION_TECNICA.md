@@ -252,3 +252,111 @@ Notas de despliegue
 - [nodemailer.js](src/config/nodemailer.js)
 - [pusher.js](src/config/pusher.js)
 
+
+## Estrategia de pruebas
+
+El backend cuenta con dos niveles de prueba automatizada, ejecutables desde la raíz del proyecto:
+
+| Comando | Alcance | Ubicación |
+|---------|---------|-----------|
+| `npm run test:e2e` | Flujos HTTP completos con Supertest y MongoDB de prueba | `src/tests/e2e/` |
+| `npm run test:unit` | Validadores y middlewares aislados, sin levantar la app | `src/tests/unit/` |
+
+Los mocks de servicios externos (Nodemailer, Pusher, Cloudinary) viven en `src/tests/helpers/setupMocks.js` y se cargan automáticamente vía Jest para evitar efectos secundarios en red durante las pruebas.
+
+---
+
+### Pruebas E2E — rutas cubiertas
+
+Las pruebas E2E validan **flujos de negocio completos**: autenticación, persistencia en MongoDB, encadenamiento de middlewares y respuestas HTTP reales. Se eligieron rutas representativas de cada dominio funcional, priorizando los caminos críticos y los casos de error más frecuentes (401, 403, 404, 409).
+
+#### 1. Autenticación (`01_auth.test.js`)
+
+| Método | Ruta | Motivo de elección |
+|--------|------|--------------------|
+| `POST` | `/api/login` | Login del SuperAdmin; punto de entrada del panel administrativo global. Cubre credenciales válidas, usuario inexistente, contraseña incorrecta y email no confirmado. |
+| `POST` | `/api/auth/login` | Login de estudiantes; flujo principal de la app móvil. Cubre éxito, errores de credenciales, cuenta suspendida, email sin confirmar y acceso al panel admin sin rol `admin_red`. |
+
+**Por qué es correcta esta selección:** la autenticación es prerrequisito de casi todos los demás flujos. Probar ambos endpoints de login garantiza que los tokens JWT emitidos en E2E posteriores (redes, social, moderación) se generan con la misma lógica que usa producción.
+
+#### 2. Estudiantes y perfil (`02_estudiantes.test.js`)
+
+| Método | Ruta | Motivo de elección |
+|--------|------|--------------------|
+| `POST` | `/api/registro-estudiantes` | Alta de nuevos usuarios; valida reglas de negocio (email duplicado, email reservado al superadmin, campos requeridos). |
+| `GET` | `/api/confirmar/:token` | Confirmación de cuenta por correo; verifica generación y consumo del token en BD. |
+| `PATCH` | `/api/completar/perfil` | Completar perfil obligatorio antes de acciones sociales; cubre username duplicado, longitud mínima y perfil ya completado. |
+| `GET` | `/api/perfil-estudiante` | Lectura del perfil autenticado; confirma que campos sensibles (`password`, `token`) no se exponen. |
+
+**Por qué es correcta esta selección:** el ciclo registro → confirmación → completar perfil es la puerta de entrada al resto de funcionalidades. Muchas rutas sociales exigen `requirePerfilCompleto`; sin probar este flujo, los E2E de publicaciones y reportes serían incompletos.
+
+#### 3. Redes comunitarias (`03_redesComunitarias.test.js`)
+
+| Método | Ruta | Motivo de elección |
+|--------|------|--------------------|
+| `POST` | `/api/redes/solicitar-creacion` | Solicitud de creación de red por un estudiante; estados `pendiente`, conflictos de nombre y solicitudes duplicadas. |
+| `PATCH` | `/api/superadmin/redes/:redId/aprobacion` | Aprobación o rechazo por SuperAdmin; transición de estado, asignación de rol `admin_red` y control de acceso por rol. |
+
+**Por qué es correcta esta selección:** las redes comunitarias son el contenedor de publicaciones, miembros y moderación. Este par de rutas modela el ciclo completo solicitud → revisión → activación, que es reutilizado como setup en los tests sociales y de moderación.
+
+#### 4. Interacción social (`04_social.test.js`)
+
+| Método | Ruta | Motivo de elección |
+|--------|------|--------------------|
+| `POST` | `/api/estudiantes/unirse/red` | Membresía en red; sincroniza `Estudiante.redComunitaria` y `RedComunitaria.miembros`. |
+| `POST` | `/api/estudiantes/publicaciones` | Creación de contenido dentro de una red; requiere pertenencia previa. |
+| `POST` | `/api/publicaciones/:id/like` | Like atómico; genera notificaciones. |
+| `DELETE` | `/api/publicaciones/:id/like` | Retirada de like; valida idempotencia y estado 409. |
+| `POST` | `/api/publicaciones/:id/comentarios` | Comentarios con populate del autor. |
+| `GET` | `/api/notificaciones` | Listado de notificaciones disparadas por likes. |
+| `DELETE` | `/api/publicaciones/eliminar/:id` | Eliminación por autor; control de permisos entre miembros. |
+
+**Por qué es correcta esta selección:** cubre el núcleo social de PoliRed (publicar, reaccionar, comentar, notificar y eliminar) sin repetir cada variante de feed. Las rutas elegidas ejercitan operaciones atómicas en MongoDB y la integración con Pusher (mockeado).
+
+#### 5. Moderación (`05_moderacion.test.js`)
+
+| Método | Ruta | Motivo de elección |
+|--------|------|--------------------|
+| `POST` | `/api/reportes/publicacion` | Creación de reportes sobre publicaciones; valida tipos permitidos y existencia del recurso. |
+| `PATCH` | `/api/admin/reportes/:id/resolver` | Resolución por `admin_red`: rechazar reporte, resolver con eliminación y strike, estados inválidos y permisos. |
+
+**Por qué es correcta esta selección:** la moderación cierra el ciclo de contenido reportado. Estas rutas verifican la cadena reporte → decisión administrativa → consecuencias (publicación eliminada, strike al autor), que es crítica para la gobernanza de la plataforma.
+
+---
+
+### Pruebas unitarias — módulos cubiertos
+
+Las pruebas unitarias se concentran en **lógica pura y repetible** que no requiere base de datos ni HTTP. Se priorizaron los módulos cuya falla provoca errores en cascada en E2E y cuyo comportamiento es determinista.
+
+#### Validadores (`validators.test.js`)
+
+| Módulo | Qué se prueba | Por qué es relevante |
+|--------|---------------|----------------------|
+| `stringValidators.js` — `nameValidator` | Longitud mínima (2 caracteres), caracteres prohibidos | Evita registros inválidos; la regla de apellido de 1 carácter fue causa directa de fallos E2E previos. |
+| `stringValidators.js` — `usernameValidator` | Longitud mínima del username | Alineado con `/api/completar/perfil`; mismo criterio que valida la API en producción. |
+| `mongoValidators.js` — `mongoIdBody` | Formato de ObjectId en body | Protege rutas que reciben `publicacionId`, `redId`, etc.; rechaza IDs mal formados antes de consultar MongoDB. |
+| `reportValidators.js` — `reportPublicacionValidator` | Catálogo de tipos (`Contenido Inapropiado`, `Spam`, …) y descripción obligatoria para `"Otro"` | Los tipos son sensibles a mayúsculas y acentos; un valor incorrecto devuelve 400 en lugar de crear el reporte. |
+| `validateResult.js` | Respuesta 400 estandarizada vs. llamada a `next()` | Centraliza el formato `{ errors: [...] }` usado en registro y otras rutas con `express-validator`. |
+
+#### Middlewares (`middlewares.test.js`)
+
+| Módulo | Qué se prueba | Por qué es relevante |
+|--------|---------------|----------------------|
+| `authSuperAdmin.js` — `isSuperAdmin` | Rol exacto `SuperAdmin` (case-sensitive) | Un rol mal escrito (`superadmin`) provocaba 403 en todas las rutas de aprobación de redes durante E2E. |
+| `checkPerfilCompleto.js` — `requirePerfilCompleto` | Bloqueo cuando `perfilCompleto === false` | Protege publicaciones, likes, reportes y unirse a red; es el guard más usado tras `verifyToken`. |
+| `checkPerfilCompleto.js` — `disallowPerfilCompleto` | Bloqueo cuando el perfil ya está completo | Evita repetir `/api/completar/perfil`; complementa el flujo probado en E2E. |
+| `auth.js` — `requireRole` | Acceso denegado sin rol requerido (`admin_red`) | Base de autorización para panel de moderación y rutas administrativas de red. |
+
+**Por qué no se unit-testean controladores completos:** los controladores mezclan persistencia, servicios externos y reglas de negocio extensas; eso ya se cubre en E2E. Unit-testear validadores y middlewares ofrece la mejor relación costo/beneficio: son pequeños, deterministas y protegen las mismas reglas que fallaron al configurar los datos de prueba E2E.
+
+---
+
+### Comandos de ejecución
+
+```bash
+npm run test:e2e    # 64 pruebas — flujos HTTP completos (--runInBand)
+npm run test:unit   # 22 pruebas — validadores y middlewares
+npm test            # ejecuta todas las pruebas en src/tests/
+```
+
+Variables de entorno requeridas para E2E: `MONGODB_URI_TEST` (definida en `.env`, usada por `src/tests/helpers/setupDB.js`).

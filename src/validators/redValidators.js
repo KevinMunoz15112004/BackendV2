@@ -67,9 +67,9 @@ const solicitarOficializacionRedValidator = [
   body('cargoPersonalizado')
     .if((value, { req }) => req.body.cargo === 'Otro')
     .trim().notEmpty().withMessage('Debes describir el cargo cuando seleccionas "Otro"'),
-  // body('correoInstitucional')
-  //   .notEmpty().withMessage('El correo institucional es obligatorio')
-  //   .matches(/^[^\s@]+@epn\.edu\.ec$/i).withMessage('El correo debe ser institucional (@epn.edu.ec)'),
+  body('correoInstitucional')
+    .notEmpty().withMessage('El correo institucional es obligatorio')
+    .matches(/^[^\s@]+@epn\.edu\.ec$/i).withMessage('El correo debe ser institucional (@epn.edu.ec)'),
   body('justificacion')
     .trim().notEmpty().withMessage('La justificación es obligatoria')
     .isLength({ max: 2000 }).withMessage('La justificación no puede superar los 2000 caracteres'),
