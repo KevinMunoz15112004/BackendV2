@@ -52,5 +52,5 @@ const apelacionSchema = new mongoose.Schema({
   }
 })
 
-const Apelacion = mongoose.model('Apelacion', apelacionSchema)
+const Apelacion = mongoose.model('Apelacion', apelacionSchema, 'apelaciones')
 export default Apelacion

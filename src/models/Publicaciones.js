@@ -62,6 +62,6 @@ const publicacionSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-const Publicacion = mongoose.model("Publicacion", publicacionSchema);
+const Publicacion = mongoose.model("Publicacion", publicacionSchema, 'publicaciones');
 
 export default Publicacion;
