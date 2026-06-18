@@ -16,7 +16,7 @@ export const login = async (req, res) => {
     const match = await user.matchPassword(password)
     if (!match) return res.status(401).json({ msg: 'Contraseña incorrecta' })
 
-    if (user.suspendido) return res.status(403).json({ msg: 'Cuenta suspendida. Apelar suspension: https://polired.vercel.app/apelar' })
+    if (user.suspendido) return res.status(403).json({ msg: 'Cuenta suspendida. Apelar suspension: https://polired.vercel.app/crearApelacion' })
 
     if (user.confirmEmail === false){
       return res.status(403).json({ msg: 'Confirma tu correo electrónico para iniciar sesión' })
