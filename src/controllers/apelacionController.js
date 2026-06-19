@@ -70,6 +70,7 @@ const getApelaciones = async (req, res) => {
   try {
     const apelaciones = await Apelacion.find()
       .populate('estudianteId', 'nombre apellido username correo suspendido')
+      .populate('redId', 'nombre')
       .sort({ fechaCreacion: -1 })
     res.json(apelaciones)
   } catch (error) {

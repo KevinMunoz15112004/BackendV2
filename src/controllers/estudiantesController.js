@@ -1029,7 +1029,7 @@ const obtenerPerfilRed = async (req, res) => {
     const { redId } = req.params
     const { page = 1, limit = 12 } = req.query
 
-    const red = await RedComunitaria.findById(redId).select('nombre descripcion cantidadMiembros fotoPerfil esOficial esVerificada administrador createdAt')
+    const red = await RedComunitaria.findById(redId).select('nombre descripcion cantidadMiembros fotoPerfil esOficial esVerificada administrador createdAt deshabilitada')
     if (!red) return res.status(404).json({ msg: 'Red comunitaria no encontrada' })
 
     const pageNumber = Math.max(parseInt(page, 10) || 1, 1)
@@ -1057,6 +1057,7 @@ const obtenerPerfilRed = async (req, res) => {
         esVerificada: red.esVerificada,
         administrador: red.administrador,
         createdAt: red.createdAt,
+        deshabilitada: red.deshabilitada,
         publicacionesCount: total
       },
       page: pageNumber,
