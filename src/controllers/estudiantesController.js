@@ -150,16 +150,7 @@ const crearNuevoPasswordEstudiante = async (req, res) => {
 
   estudianteBDD.token = null
   estudianteBDD.password = await estudianteBDD.encrypPassword(password)
-
   await estudianteBDD.save()
-
-  const correoAdmin = estudianteBDD.email
-  const admin = await AdminRed.findOne({ email: correoAdmin })
-
-  if (admin) {
-    admin.password = await admin.encrypPassword(password)
-    await admin.save();
-  }
 
   return res.status(200).json({ msg: "Felicitaciones, ya puedes iniciar sesión con tu nuevo password" })
 }
