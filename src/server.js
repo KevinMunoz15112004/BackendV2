@@ -45,6 +45,7 @@ app.get('/', (req, res) => {
     res.send({
         mensaje: "Server On - Vercel",
         aplicacion: "PoliRed Backend",
+        autor: "Kevin Muñoz - Estudiante ESFOT",
         version: "1.0.0",
     })
 })
