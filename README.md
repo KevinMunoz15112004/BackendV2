@@ -48,7 +48,7 @@ Colección de endpoints:
 2. Clona el repositorio y entra en la carpeta del proyecto.
 3. Instala dependencias con `npm install`.
 4. Crea un archivo `.env` basado en [.env.example](.env.example).
-5. Si vas a ejecutar el proyecto en local y `src/local.js` no viene en tu copia del repositorio, créalo manualmente en esa ruta antes de usar `npm run dev`.
+5. Para ejecutar el proyecto en local el archivo `src/local.js` se debe crear manualmente en esa ruta antes de usar `npm run dev`.
 
 Variables principales: `MONGODB_URI_LOCAL`, `FRONTEND_URL`, `JWT_SECRET`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `PUSHER_APP_ID`, `PUSHER_KEY`, `PUSHER_SECRET`, `PUSHER_CLUSTER`, `USER_MAILTRAP` y `PASS_MAILTRAP`.
 
@@ -68,13 +68,13 @@ npm start
 
 ## Tecnologías principales
 
-- Node.js con ES Modules y Express
-- MongoDB con Mongoose
-- JWT para autenticación y autorización
+- `Node.js` con ES Modules y Express
+- `MongoDB` con Mongoose
+- `JWT` para autenticación y autorización
 - `bcryptjs` para hashing de contraseñas
-- Cloudinary para gestión de archivos multimedia
-- Pusher para eventos en tiempo real
-- Nodemailer para envío de correos
+- `Cloudinary` para gestión de archivos multimedia
+- `Pusher` para eventos en tiempo real
+- `Nodemailer` para envío de correos
 - `express-validator` para validación de entradas
 
 ## Módulos principales

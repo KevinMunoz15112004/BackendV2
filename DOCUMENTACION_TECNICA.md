@@ -94,7 +94,7 @@ Información relevante:
 
 - **package.json**: scripts y dependencias principales. Ver [package.json](package.json)
 - **src/index.js**: handler de entrada. Se asegura de la conexión con la base de datos antes de delegar en la app express. Ver [src/index.js](src/index.js)
-- **src/local.js**: arranque local. Es el archivo que se ejecuta en desarrollo y, si no viene en el repositorio, debe crearse manualmente en `src/local.js`.
+- **src/local.js**: arranque local. Es el archivo que se ejecuta en desarrollo y, debe crearse manualmente en `src/local.js`.
 - **src/server.js**: configuración de Express, middlewares globales y montaje de rutas. Ver [src/server.js](src/server.js)
 - **src/database.js**: conexión a MongoDB usando Mongoose. Ver [src/database.js](src/database.js)
 - **src/routers/**: definición de rutas agrupadas por dominio (auth, estudiantes, social, mensajes, admin, superadmin, apelaciones). Ej: [src/routers/socialRoutes.js](src/routers/socialRoutes.js)
@@ -107,7 +107,6 @@ Información relevante:
 ### Detalle de uso de Nodemailer
 
 - `src/config/nodemailer.js` concentra los transportadores, plantillas HTML y funciones de envío de correos. Se usa desde [src/controllers/estudiantesController.js](src/controllers/estudiantesController.js) para registro y recuperación de contraseña, desde [src/controllers/SuperAdminController.js](src/controllers/SuperAdminController.js) para recuperación de contraseña y nuevo admin, desde [src/controllers/apelacionController.js](src/controllers/apelacionController.js) para notificaciones de apelaciones y desde [src/services/redService.js](src/services/redService.js) para aprobación o rechazo de redes.
-- `src/controllers/authController.js` no usa Nodemailer en esta versión del proyecto.
 
 ### Detalle de uso de Cloudinary
 
