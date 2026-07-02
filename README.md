@@ -1,79 +1,86 @@
 # Backend PoliRed
 
+Backend de PoliRed construido con Node.js, Express y MongoDB. El proyecto expone una API REST organizada por dominio, con autenticación JWT, gestión de redes comunitarias, publicaciones, mensajes, reportes, apelaciones y paneles de administración para red y superadmin.
+
 ## Estructura resumida
 
 ```
 PoliRed/
 ├─ package.json
 ├─ README.md
-├─ Documentacion Tecnica.md
+├─ DOCUMENTACION_TECNICA.md
+├─ .env.example
 ├─ vercel.json
 └─ src/
 	├─ index.js
+	├─ local.js
 	├─ server.js
 	├─ database.js
-	├─ local.js
 	├─ config/
 	├─ controllers/
+	├─ helpers/
+	├─ middlewares/
 	├─ models/
 	├─ routers/
-	├─ middlewares/
 	├─ services/
-	├─ helpers/
+	├─ tests/
 	└─ validators/
 ```
 
 ## Información general
 
-Para tener mejor información sobre el backend dirigirse a la [Documentación Técnica](DOCUMENTACION_TECNICA.md)
+Para una descripción más completa de la arquitectura y los flujos internos, revisa la [Documentación Técnica](DOCUMENTACION_TECNICA.md).
 
-Este repositorio muestra el componente Backend completamente desarrollado con sus respectivos endpoints.
+Este repositorio contiene el backend finalizado del proyecto, listo para desplegarse en Vercel y para ejecutarse localmente con su configuración de desarrollo.
 
-Para clonar este respositorio se lo hace mediante:
-
+Repositorio original:
 <pre>git clone https://github.com/KevinMunoz15112004/PoliRed</pre>
 
-Este backend fue desplegado en Vercel, se puede acceder mediante la siguiente URL:
+Despliegue público:
 <pre>https://polired-api.vercel.app/</pre>
 
-La documentación de cada uno de los endpoints se encuentra en:
+Colección de endpoints:
 <pre>https://documenter.getpostman.com/view/45783834/2sBXwqqAF5</pre>
 
----
-
 ## Instalación
- 
-- Requisitos: Node.js (recomendado v16+), npm, y una instancia de MongoDB (o URI de MongoDB Atlas).
-- Clonar el repositorio (ya indicado arriba) y entrar en la carpeta:
 
-```bash
-cd PoliRed
-npm install
-```
+1. Requisitos: Node.js, npm y acceso a MongoDB local o MongoDB Atlas.
+2. Clona el repositorio y entra en la carpeta del proyecto.
+3. Instala dependencias con `npm install`.
+4. Crea un archivo `.env` basado en [.env.example](.env.example).
+5. Si vas a ejecutar el proyecto en local y `src/local.js` no viene en tu copia del repositorio, créalo manualmente en esa ruta antes de usar `npm run dev`.
 
-- Variables de entorno: crear un archivo `.env` con (como mínimo) las claves indicadas en [.env.example](.env.example)
+Variables principales: `MONGODB_URI_LOCAL`, `FRONTEND_URL`, `JWT_SECRET`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `PUSHER_APP_ID`, `PUSHER_KEY`, `PUSHER_SECRET`, `PUSHER_CLUSTER`, `USER_MAILTRAP` y `PASS_MAILTRAP`.
 
-Ejecución
+## Ejecución
 
-- Modo desarrollo:
+Modo desarrollo:
 
 ```bash
 npm run dev
 ```
 
-- Producción:
+Producción:
 
 ```bash
 npm start
 ```
 
-Tecnologías principales
+## Tecnologías principales
 
-- Node.js (ES Modules) + Express
-- MongoDB + Mongoose
-- JWT (`jsonwebtoken`) para autenticación
+- Node.js con ES Modules y Express
+- MongoDB con Mongoose
+- JWT para autenticación y autorización
 - `bcryptjs` para hashing de contraseñas
-- Cloudinary para gestión de media
+- Cloudinary para gestión de archivos multimedia
 - Pusher para eventos en tiempo real
 - Nodemailer para envío de correos
-- `express-validator` para validación de inputs
+- `express-validator` para validación de entradas
+
+## Módulos principales
+
+- Autenticación y perfiles de estudiantes
+- Publicaciones, comentarios, guardados y notificaciones
+- Redes comunitarias y administración de red
+- Mensajes y conversaciones privadas
+- Reportes, solicitudes, apelaciones y moderación

@@ -1,29 +1,30 @@
 # Documentación técnica del backend - PoliRed
 
-Esta documentación describe la arquitectura, estructura, componentes clave y funcionamiento interno del backend de PoliRed. Explica decisiones de diseño, flujo de datos, dependencias y aspectos operativos.
+Esta documentación resume la arquitectura, los módulos principales y el comportamiento real del backend de PoliRed. El proyecto está construido con Node.js en modo ES Modules, Express como capa HTTP, MongoDB con Mongoose como persistencia y servicios externos para media, notificaciones y correo.
 
 ## Resumen principal
 
-PoliRed es un backend en Node.js (ES Modules) que expone una API REST organizada por controladores y routers. Usa MongoDB (Mongoose) como datastore, integra servicios externos (Cloudinary para media, Pusher para eventos en tiempo real y Nodemailer para correos) y aplica autenticación basada en JWT. Está preparado para desplegarse en entornos tradicionales y serverless (ej. Vercel), siguiendo el patrón de un `handler` que garantiza la conexión a la base de datos antes de atender peticiones.
+PoliRed expone una API REST organizada por rutas y controladores. La aplicación cubre autenticación, perfiles de estudiantes, redes comunitarias, publicaciones, comentarios, guardados, mensajes, reportes, apelaciones y flujos de administración para red y superadmin. Usa JWT para autenticación, Cloudinary para archivos, Pusher para eventos en tiempo real y Nodemailer para correos.
+
+El backend tiene dos puntos de entrada: `src/index.js` para despliegues serverless y `src/local.js` para ejecución local. Ambos reutilizan `src/server.js` como aplicación Express central.
 
 ## Estructura del proyecto
-
-A continuación se puede visualizar la estructura completa del backend:
 
 ```
 PoliRed/
 ├─ package.json
 ├─ README.md
-├─ Documentacion Tecnica.md
+├─ DOCUMENTACION_TECNICA.md
+├─ .env.example
 ├─ vercel.json
 └─ src/
   ├─ index.js
+  ├─ local.js
   ├─ server.js
   ├─ database.js
   ├─ config/
   │  ├─ nodemailer.js
-  │  ├─ pusher.js
-  │  └─ cloudinary.js
+  │  └─ pusher.js
   ├─ controllers/
   │  ├─ adminRedController.js
   │  ├─ apelacionController.js
@@ -33,9 +34,18 @@ PoliRed/
   │  ├─ reportesSolicitudesController.js
   │  ├─ socialController.js
   │  └─ SuperAdminController.js
+  ├─ helpers/
+  │  ├─ globalRed.js
+  │  ├─ notificaciones.js
+  │  ├─ postResolver.js
+  │  └─ reportHelpers.js
+  ├─ middlewares/
+  │  ├─ auth.js
+  │  ├─ authSuperAdmin.js
+  │  └─ checkPerfilCompleto.js
   ├─ models/
   │  ├─ adminRedes.js
-  │  ├─ Apelaciones.js
+  │  ├─ Apelacion.js
   │  ├─ Articulos.js
   │  ├─ Comentarios.js
   │  ├─ Conversaciones.js
@@ -55,223 +65,217 @@ PoliRed/
   │  ├─ mensajesRoutes.js
   │  ├─ socialRoutes.js
   │  └─ superAdminRoutes.js
-  ├─ middlewares/
-  │  ├─ auth.js
-  │  ├─ authSuperAdmin.js
-  │  ├─ checkPerfilCompleto.js
-  ├─ helpers/
-  │  ├─ globalRed.js
-  │  ├─ notificaciones.js
-  │  ├─ postResolver.js
-  │  └─ reportHelpers.js
   ├─ services/
   │  ├─ cloudinaryService.js
   │  ├─ mediaService.js
   │  ├─ profileService.js
   │  ├─ redService.js
   │  └─ reportesService.js
-  ├─ validators/
-  │  ├─ authValidators.js
-  │  ├─ commonValidators.js
-  │  ├─ contentValidators.js
-  │  ├─ index.js
-  │  ├─ mongoValidators.js
-  │  ├─ redValidators.js
-  │  ├─ reportValidators.js
-  │  ├─ stringValidators.js
-  │  └─ validateResult.js
   ├─ tests/
   │  ├─ e2e/
-  │  │  ├─ 01_auth.test.js
-  │  │  ├─ 02_estudiantes.test.js
-  │  │  ├─ 03_redesComunitarias.test.js
-  │  │  ├─ 04_social.test.js
-  │  │  └─ 05_moderacion.test.js
   │  ├─ helpers/
-  │  │  ├─ authHelpers.js
-  │  │  ├─ seeders.js
-  │  │  ├─ setupDB.js
-  │  │  └─ setupMocks.js  
-  │  ├─ unit/
-  │  │  ├─ middlewares.test.js
-  │  │  └─ validators.test.js  
-
+  │  └─ unit/
+  └─ validators/
+     ├─ apelacionValidators.js
+     ├─ authValidators.js
+     ├─ commonValidators.js
+     ├─ contentValidators.js
+     ├─ index.js
+     ├─ mongoValidators.js
+     ├─ redValidators.js
+     ├─ reportValidators.js
+     ├─ stringValidators.js
+     └─ validateResult.js
 ```
+
+## Información relevante por carpeta
 
 Información relevante:
 
 - **package.json**: scripts y dependencias principales. Ver [package.json](package.json)
 - **src/index.js**: handler de entrada. Se asegura de la conexión con la base de datos antes de delegar en la app express. Ver [src/index.js](src/index.js)
-- **src/server.js**: configuración de Express, middlewares globales y montaje de rutas. Ver [server.js](src/server.js)
-- **src/database.js**: conexión a MongoDB usando Mongoose. Ver [database.js](src/database.js)
-- **src/routers/**: definición de rutas agrupadas por dominio (auth, estudiantes, social, mensajes, admin, superadmin). Ej: [socialRoutes.js](src/routers/socialRoutes.js)
-- **src/controllers/**: lógica por caso de uso. Ej: [socialController.js](src/controllers/socialController.js)
-- **src/models/**: esquemas Mongoose (Estudiantes, Publicaciones, Comentarios, RedComunitaria, etc.). Ej: [Estudiantes.js](src/models/Estudiantes.js)
-- **src/config/**: integraciones con servicios externos (Cloudinary, Nodemailer, Pusher). Ej: [nodemailer.js](src/config/nodemailer.js), [pusher.js](src/config/pusher.js)
-- **src/middlewares/**: autenticación, autorización, validaciones y verificaciones de perfil.
-- **src/helpers/** y **src/services/**: utilidades y lógica reutilizable (resolución de posts, notificaciones, media management).
+- **src/local.js**: arranque local. Es el archivo que se ejecuta en desarrollo y, si no viene en el repositorio, debe crearse manualmente en `src/local.js`.
+- **src/server.js**: configuración de Express, middlewares globales y montaje de rutas. Ver [src/server.js](src/server.js)
+- **src/database.js**: conexión a MongoDB usando Mongoose. Ver [src/database.js](src/database.js)
+- **src/routers/**: definición de rutas agrupadas por dominio (auth, estudiantes, social, mensajes, admin, superadmin, apelaciones). Ej: [src/routers/socialRoutes.js](src/routers/socialRoutes.js)
+- **src/controllers/**: lógica por caso de uso. Ej: [src/controllers/socialController.js](src/controllers/socialController.js)
+- **src/models/**: esquemas Mongoose (Estudiantes, Publicaciones, Comentarios, RedComunitaria, Notificaciones, Mensajes, etc.). Ej: [src/models/Estudiantes.js](src/models/Estudiantes.js)
+- **src/config/**: integraciones con servicios externos (Cloudinary, Nodemailer, Pusher). Ej: [src/config/nodemailer.js](src/config/nodemailer.js), [src/config/pusher.js](src/config/pusher.js)
+- **src/middlewares/**: autenticación, autorización, validaciones y verificaciones de perfil. Ej: [src/middlewares/auth.js](src/middlewares/auth.js)
+- **src/helpers/** y **src/services/**: utilidades y lógica reutilizable (resolución de posts, notificaciones, media management, reglas de red). Ej: [src/helpers/notificaciones.js](src/helpers/notificaciones.js), [src/services/redService.js](src/services/redService.js)
 
-A continuación se presenta una vista más completa de la estructura de archivos y carpetas que componen el backend.
+### Detalle de uso de Nodemailer
+
+- `src/config/nodemailer.js` concentra los transportadores, plantillas HTML y funciones de envío de correos. Se usa desde [src/controllers/estudiantesController.js](src/controllers/estudiantesController.js) para registro y recuperación de contraseña, desde [src/controllers/SuperAdminController.js](src/controllers/SuperAdminController.js) para recuperación de contraseña y nuevo admin, desde [src/controllers/apelacionController.js](src/controllers/apelacionController.js) para notificaciones de apelaciones y desde [src/services/redService.js](src/services/redService.js) para aprobación o rechazo de redes.
+- `src/controllers/authController.js` no usa Nodemailer en esta versión del proyecto.
+
+### Detalle de uso de Cloudinary
+
+- `src/server.js` configura la conexión base con Cloudinary usando `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` y `CLOUDINARY_API_SECRET`, y además habilita `express-fileupload` para recibir archivos desde el frontend.
+- `src/services/cloudinaryService.js` contiene la lógica de subida real con `cloudinary.uploader.upload_stream`, manejo de timeouts, limpieza de archivos temporales y normalización de errores [src/services/cloudinaryService.js](src/services/cloudinaryService.js).
+- `src/services/mediaService.js` actúa como capa de orquestación: lee URLs ya existentes desde el body, toma archivos del request y combina todo antes de delegar la subida [src/services/mediaService.js](src/services/mediaService.js).
+- `src/services/profileService.js` reutiliza la subida a Cloudinary para imágenes de perfil y flujos similares donde se necesita procesar archivos antes de persistirlos [src/services/profileService.js](src/services/profileService.js).
+- `src/controllers/estudiantesController.js` usa Cloudinary para avatar, perfil público y contenido multimedia del estudiante [src/controllers/estudiantesController.js](src/controllers/estudiantesController.js).
+- `src/controllers/adminRedController.js` usa Cloudinary en la actualización de la red comunitaria cuando se envían imágenes [src/controllers/adminRedController.js](src/controllers/adminRedController.js).
+- `src/controllers/SuperAdminController.js` también consume Cloudinary para actualizar recursos gráficos asociados a su foto de perfil [src/controllers/SuperAdminController.js](src/controllers/SuperAdminController.js).
+- `src/tests/helpers/setupMocks.js` mockea Cloudinary para evitar subidas reales durante las pruebas automatizadas [src/tests/helpers/setupMocks.js](src/tests/helpers/setupMocks.js).
 
 ## Flujo de arranque
 
-1. El entry point usado en despliegue serverless es `src/index.js`, que exporta una función `handler(req, res)`.
-2. En la primera invocación llama a `src/database.js` para conectar Mongoose a `process.env.MONGODB_URI_LOCAL`.
-3. `src/server.js` exporta la aplicación Express configurada (middlewares, Cloudinary, rutas). `index.js` delega todas las peticiones a esa app.
+1. `src/index.js` exporta un `handler(req, res)` para entornos serverless y conecta MongoDB solo en la primera invocación.
+2. `src/local.js` se usa en desarrollo: conecta a la base de datos y levanta el servidor HTTP local.
+3. `src/server.js` configura Express, CORS, `express.json`, `express.urlencoded`, `express-fileupload`, Cloudinary y el montaje de rutas.
 
-Este patrón (handler que garantiza conexión DB) es idóneo para entornos serverless ya que evita reconexiones innecesarias.
+Este esquema evita duplicar lógica de inicialización entre desarrollo local y despliegue en Vercel.
 
 ## Dependencias principales
 
-- `express` (v5): servidor HTTP y manejo de rutas.
+- `express`: servidor HTTP y enrutado.
 - `mongoose`: ODM para MongoDB.
-- `jsonwebtoken`: JWT para autenticación.
+- `jsonwebtoken`: emisión y verificación de JWT.
 - `bcryptjs`: hashing de contraseñas.
-- `cloudinary`: gestión de media.
-- `pusher`: notificaciones en tiempo real (websockets/pubsub).
+- `cloudinary`: almacenamiento de media.
+- `pusher`: notificaciones en tiempo real.
 - `nodemailer`: envío de correos.
-- `express-validator`: validación de input.
-
-Ver lista completa en [package.json](package.json).
+- `express-validator`: validación de entradas.
+- `cors` y `express-fileupload`: soporte de frontend y subida de archivos.
 
 ## Variables de entorno esenciales
 
-La aplicación está basada en variables de entorno:
+La configuración depende de las variables definidas en [.env.example](.env.example):
 
-- `MONGODB_URI_LOCAL` — URI de conexión a MongoDB. (src/database.js)
-- `JWT_SECRET` — secreto para firmar/verificar tokens JWT. (authController, middlewares)
-- `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` — para Cloudinary (src/server.js)
-- `PUSHER_APP_ID`, `PUSHER_KEY`, `PUSHER_SECRET`, `PUSHER_CLUSTER` — para Pusher (src/config/pusher.js)
-- `USER_MAILTRAP`, `PASS_MAILTRAP`, `FRONTEND_URL`, `LOGO_URL` — para Nodemailer/plantillas (src/config/nodemailer.js)
-- `PORT` — puerto por defecto (src/local.js, server.js)
+- `MONGODB_URI_LOCAL`: cadena de conexión a MongoDB.
+- `FRONTEND_URL`: origen permitido por CORS y enlaces generados desde correo.
+- `JWT_SECRET`: secreto para firmar y verificar tokens.
+- `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`: credenciales de Cloudinary.
+- `PUSHER_APP_ID`, `PUSHER_KEY`, `PUSHER_SECRET`, `PUSHER_CLUSTER`: credenciales de Pusher.
+- `USER_MAILTRAP`, `PASS_MAILTRAP`: credenciales de correo.
+- `PORT`: puerto para ejecución local.
 
-## Modelos y diseño de datos (resumen)
+## Modelos y diseño de datos
 
-Se usa Mongoose con esquemas que modelan usuarios, publicaciones, comentarios, redes comunitarias, notificaciones, mensajes y roles.
+El proyecto usa Mongoose para modelar usuarios, redes, publicaciones, comentarios, mensajes, reportes y notificaciones.
 
-- `Estudiante` (`src/models/Estudiantes.js`): campos relevantes: `nombre`, `apellido`, `username`, `email`, `password`, `roles` (ej. `estudiante`, `admin_red`), `perfilCompleto`, `publicacionesGuardadas`, `redComunitaria`. Métodos de instancia: `encrypPassword`, `matchPassword`, `crearToken`, y hooks `pre('save')` para normalizar email.
-- `Publicacion` / `Articulo` (en `src/models/`): contienen arrays de `likes`, contadores `likesCount`, `commentsCount`, referencias a `autorId` y `comunidadId`.
-- `Comentario` mantiene `parentId` para construir árboles de respuestas (estructura de hilos).
-- `Notificacion` agrupa emisores para evitar spam (agrega emisores en eventos recurrentes de tipo `like` y mantiene `totalEmisores`).
+- `Estudiantes`: usuario principal del sistema, con datos de perfil, roles, estado de perfil completo y referencias a red y publicaciones guardadas.
+- `Publicaciones` y `Articulos`: contenido social con referencias a autor, red o comunidad, además de contadores de likes y comentarios.
+- `Comentarios`: soporta respuestas anidadas mediante `parentId`.
+- `Conversaciones` y `Mensajes`: estructuran el chat privado entre usuarios.
+- `Notificaciones`: registra eventos como likes, comentarios, aprobaciones y reportes.
+- `RedComunitaria`, `Solicitudes`, `Reportes`, `AdminRedes`, `SuperAdmin` y `Apelacion`: cubren la administración de redes, moderación y revisiones.
 
-Decisiones de diseño destacadas:
+Patrones aplicados:
 
-- Uso de arrays de ObjectId con operaciones atómicas MongoDB (`$addToSet`, `$inc`, `$pull`) para consistencia y evitar condiciones de carrera.
-- Normalización de emails y validaciones de schema para mantener integridad.
+- Uso de referencias `ObjectId` entre documentos para autor, red, conversación y receptor.
+- Operaciones atómicas como `$addToSet`, `$inc` y `$pull` para mantener consistencia.
+- Validaciones a nivel de esquema y de request para reducir estados inválidos.
 
-Modelos relevantes:
+## Rutas y controladores
 
-- `Estudiantes` (`src/models/Estudiantes.js`): usuario principal. Campos: `nombre`, `apellido`, `username`, `email`, `password`, `roles`, `perfilCompleto`, `publicacionesGuardadas`, `redComunitaria`, `avatar`, `bio`. Métodos: `encryptPassword`, `matchPassword`, `crearToken`. Hooks: `pre('save')` (normalización/email).
-- `Publicaciones` / `Articulos` (`src/models/Publicaciones.js` o `Articulos.js`): campos: `titulo`, `contenido`, `media`, `autorId`, `comunidadId`, `likes` (array de ObjectId), `likesCount`, `commentsCount`, `createdAt`.
-- `Comentarios` (`src/models/Comentarios.js`): soporta `parentId` para hilos, referencia a `autorId` y `publicacionId`.
-- `Conversaciones` y `Mensajes` (`src/models/Conversaciones.js`, `src/models/Mensajes.js`): estructura de chats entre usuarios, índices por participantes, mensajes con marcadores de leído.
-- `Notificaciones` (`src/models/Notificaciones.js`): registro por usuario receptor, puede agrupar emisores para eventos repetitivos (p. ej. likes múltiples).
-- `RedComunitaria`, `Solicitudes`, `Reportes`, `AdminRedes`, `SuperAdmin` — modelos para gestión de comunidades, solicitudes y roles administrativos.
+Todas las rutas se montan bajo `/api` en `src/server.js`.
 
-Relaciones y patrones:
+### Autenticación
 
-- Referencias entre documentos (ObjectId) para autor / comunidad / conversacion.
-- Campos contadores (`likesCount`, `commentsCount`) actualizados de forma atómica con `$inc` para rendimiento.
-- Uso de `$addToSet` para evitar duplicados en arrays (likes, guardados).
+- `POST /api/login` para SuperAdmin.
+- `POST /api/auth/login` para acceso a los demás roles.
+- `POST /api/recuperar-password`, `GET /api/recuperar-password/:token`, `POST /api/nuevo-password/:token` para procesos con recuperación de contraseña.
 
-## Rutas y controladores (visión general)
+### Estudiantes
 
-Las rutas se agrupan bajo el prefijo `/api` (configurado en [server.js](src/server.js)) y se dividen por responsabilidad:
+- `POST /api/registro-estudiantes`.
+- `GET /api/confirmar/:token`.
+- `POST /api/recuperar-password-e`, `GET /api/recuperar-password-e/:token`, `POST /api/nuevo-password-e/:token`.
+- `GET /api/perfil-estudiante`, `PATCH /api/perfil/username`, `PATCH /api/completar/perfil`, `PATCH /api/estudiante/:id`, `PATCH /api/estudiante/actualizarpassword/:id`.
+- `POST /api/estudiantes/publicaciones`, `DELETE /api/publicaciones/eliminar/:id`.
+- `GET /api/publicaciones/global`, `GET /api/publicaciones/comunitarias`, `GET /api/publicaciones/red/:redId`.
+- `POST /api/publicaciones/articulos`, `GET /api/publicaciones/articulos/global`, `GET /api/publicaciones/articulos/comunitarias`, `DELETE /api/publicaciones/articulo/eliminar/:id`.
+- `GET /api/redes/listar`, `GET /api/redes/:redId`, `POST /api/estudiantes/unirse/red`, `POST /api/estudiantes/salirse/red`.
+- `GET /api/cargar/estudiantes`, `GET /api/perfil-publico/:usuarioId/info`, `GET /api/perfil-publico/:usuarioId/feed`.
+- `POST /api/estudiantes/reportes/red` y `POST /api/estudiantes/solicitud/postular/admin-red`.
 
-- Autenticación: `src/routers/authRoutes.js` -> login, registro, recuperación.
-- Estudiantes: `src/routers/estudiantesRoutes.js` -> perfil, modificaciones.
-- Social: `src/routers/socialRoutes.js` -> likes, comentarios, guardados, reportes, notificaciones. (ver [socialRoutes.js](src/routers/socialRoutes.js) y [socialController.js](src/controllers/socialController.js))
-- Mensajes y conversaciones: ver en [mensajesRoutes.js](src/routers/mensajesRoutes.js).
-- Admin / SuperAdmin: endpoints para gestión y aprobación de redes.
+### Social
 
- Ejemplos importantes:
+- `POST /api/redes/solicitar-creacion`.
+- `GET /api/usuarios/guardados`, `GET /api/usuarios/likes`.
+- `GET /api/notificaciones` y `PATCH /api/notificaciones/:id/leida`.
 
-- POST `/api/redes/solicitar-creacion` — crea una solicitud de red comunitaria (controlada por `socialController.solicitarCreacionRed`).
-- POST `/api/publicaciones/:id/like` — añade un like (operación atómica `$addToSet` + `$inc`) y genera notificación con agregación de emisores para reducir ruido.
-- POST `/api/publicaciones/:id/comentarios` — crea comentario y actualiza `commentsCount` de forma atómica.
+### Mensajes
 
-Convenciones de API
+- `POST /api/send`.
+- `GET /api/entre/:otherId`.
+- `GET /api/conversaciones`.
+- `GET /api/conversacion/:id`.
+- `POST /api/:conversacionId/leidos`.
+- `POST /api/pusher/auth` y `POST /api/pusher/status`.
 
-- Autenticación: Bearer JWT en `Authorization: Bearer <token>`.
-- Respuestas: estructura JSON consistente (ver en los controladores para formato exacto).
+### Admin Red
 
-Endpoints importantes (resumen):
+- `GET /api/perfil/admin-red`.
+- `GET /api/red/admin/informacion`, `PATCH /api/admin/actualizar/red`.
+- `GET /api/admin/estudiantes/listar`, `DELETE /api/admin/estudiantes/eliminar/:estudianteId`.
+- `GET /api/admin/red/reportes`, `PATCH /api/admin/reportes/:id/resolver`, `DELETE /api/admin/reportes/:subtype/:id`.
+- `GET /api/solicitudes/:subtype`.
+- `POST /api/redes/solicitar-verificacion`, `POST /api/redes/solicitar-oficializacion`, `POST /api/redes/solicitar/revocar-admin`.
 
-- Auth: `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/forgot-password`
-- Estudiantes: `GET /api/estudiantes/me`, `PUT /api/estudiantes/:id` (perfil)
-- Social/Publicaciones: `GET /api/publicaciones`, `POST /api/publicaciones`, `POST /api/publicaciones/:id/like`, `POST /api/publicaciones/:id/comentarios`, `POST /api/publicaciones/:id/reportar`
-- Redes: `POST /api/redes/solicitar-creacion`, `GET /api/redes`, administracion en rutas de admin/superadmin
-- Mensajes: `POST /api/conversaciones`, `GET /api/conversaciones/:id`, `POST /api/mensajes`
+### SuperAdmin
 
-Consultar la colección Postman (URL en README) para la lista completa y ejemplos.
+- `GET /api/perfil-superadmin`.
+- `GET /api/redes`, `GET /api/red/:id`, `DELETE /api/eliminar-red/:id`.
+- `GET /api/estudiantes`, `GET /api/estudiantes/:id`.
+- Gestión de reportes, solicitudes, strikes, apelaciones y aprobación de redes pendientes.
+
+### Apelaciones
+
+- `POST /api/apelaciones`.
+- `POST /api/apelaciones/red` para apelaciones asociadas a una red y protegidas por rol `admin_red`.
 
 ## Autenticación y autorización
 
-- JWT: emisión y verificación mediante `jsonwebtoken` y la variable `JWT_SECRET`.
-- Middlewares:
-  - `verifyToken` — valida token y añade `req.user`.
-  - `requireRole('admin_red')` — control de acceso por roles.
-  - `requirePerfilCompleto` — ciertos endpoints requieren perfil completo.
-
- Nota: el middleware centraliza la verificación y permite aplicar políticas por ruta, mejorando trazabilidad y seguridad.
-
-  Detalles de seguridad
-
-  - JWT: tokens firmados con `JWT_SECRET`. Los middleware (`verifyToken`) verifican el token y añaden `req.user`.
-  - Contraseñas: almacenadas con hashing `bcryptjs` (sal + hash) y comparadas con `matchPassword`.
-  - Roles: control de acceso por rol (`admin_red`, `superadmin`, etc.) implementado en middlewares de autorización.
-  - Validación de entrada: `express-validator` evita inyecciones y entrada inválida; `validateResult` estandariza errores.
-  - CORS: gestionado en `server.js` para permitir llamadas desde frontend autorizado (variable `FRONTEND_URL`).
+- JWT para sesiones autenticadas.
+- `verifyToken` y `optionalVerifyToken` en rutas de estudiantes y social.
+- `requireRole('admin_red')` para funciones de administración de red.
+- `autenticarToken` e `isSuperAdmin` para panel global.
+- `requirePerfilCompleto` y `disallowPerfilCompleto` para controlar el ciclo de onboarding del estudiante.
 
 ## Notificaciones en tiempo real y correos
 
-- Notificaciones internas: modelo `Notificacion`, lógica en `helpers/notificaciones.js` y creación desde controladores.
-- Eventos en tiempo real: `src/config/pusher.js` expone `triggerUserChannel(userId, event, payload)` para emitir eventos a canales privados `private-user-{userId}`.
-- Emails: [nodemailer.js](src/config/nodemailer.js) centraliza plantillas HTML y funciones de envío (`sendMailToRecoveryPassword`, `sendMailRedAprobada`, etc.).
-
-Integración combinada: acciones que generan notificaciones (likes, comentarios, aprobaciones) disparan tanto registros en BD como eventos Pusher y correos cuando aplica.
-
-## Gestión de media
-
-- Cloudinary está configurado en `src/server.js` mediante variables `CLOUDINARY_*`.
-- `express-fileupload` se usa para recibir archivos; los servicios en `src/services` encapsulan subida y manipulación.
+- `src/config/pusher.js` centraliza la emisión de eventos a canales privados por usuario.
+- `src/config/nodemailer.js` centraliza el envío de correos y plantillas HTML.
+- `helpers/notificaciones.js` y los controladores generan los registros de notificación en base a acciones de negocio.
 
 ## Validaciones
 
-- `express-validator` + conjunto de validadores en `src/validators` garantizan sanidad de los inputs (ej.: `mongoIdParam`, `trimAndNotEmpty`, validadores de reportes).
-- `validateResult` centraliza el manejo de errores de validación.
+- `src/validators` agrupa validaciones reutilizables para strings, IDs de Mongo, reportes, contenidos y apelaciones.
+- `validateResult` estandariza la respuesta de error cuando una validación falla.
 
 ## Consideraciones de concurrencia y diseño escalable
 
-- Uso de operaciones atómicas de MongoDB para evitar races (`$addToSet`, `$inc`, `$pull`).
-- Notificaciones agrupadas (notificación madre para likes) reduce I/O y spam de notificaciones.
-- Pusher permite escalar reparto de eventos sin mantener WebSocket state en el servidor.
+- Operaciones atómicas para likes, guardados y contadores.
+- Reducción de ruido en notificaciones mediante agrupación de emisores.
+- Separación entre capa HTTP, controladores, servicios y helpers para simplificar mantenimiento.
 
 ## Despliegue y ejecución local
 
-Comandos útiles (desde la raíz):
+Comandos útiles desde la raíz:
 
 ```
 npm install
-npm run dev        # modo desarrollo (observa cambios con node --watch src/local.js)
-npm start          # arrancar con node src/index.js (útil en entornos serveless)
+npm run dev
+npm start
 ```
 
-Notas de despliegue
+`src/index.js` está pensado para Vercel y otros entornos serverless, mientras que `src/local.js` ofrece una ejecución local tradicional con `app.listen`.
 
-- Handler serverless: `src/index.js` está diseñado para entornos serverless (Vercel, etc.). En la primera invocación garantiza la conexión a Mongoose y reutiliza la conexión en llamadas subsecuentes.
-
-## Resumen de archivos clave para dar lectura breve
+## Resumen de archivos clave para lectura rápida
 
 - [package.json](package.json)
-- [index.js](src/index.js)
-- [server.js](src/server.js)
-- [database.js](src/database.js)
-- [socialRoutes.js](src/routers/socialRoutes.js)
-- [socialController.js](src/controllers/socialController.js)
-- [Estudiantes.js](src/models/Estudiantes.js)
-- [nodemailer.js](src/config/nodemailer.js)
-- [pusher.js](src/config/pusher.js)
+- [src/index.js](src/index.js)
+- [src/server.js](src/server.js)
+- [src/database.js](src/database.js)
+- [src/routers/socialRoutes.js](src/routers/socialRoutes.js)
+- [src/controllers/socialController.js](src/controllers/socialController.js)
+- [src/models/Estudiantes.js](src/models/Estudiantes.js)
+- [src/config/nodemailer.js](src/config/nodemailer.js)
+- [src/config/pusher.js](src/config/pusher.js)
 
 
 ## Estrategia de pruebas
@@ -280,8 +284,13 @@ El backend cuenta con dos niveles de prueba automatizada, ejecutables desde la r
 
 | Comando | Alcance | Ubicación |
 |---------|---------|-----------|
-| `npm run test:e2e` | Flujos HTTP completos con Supertest y MongoDB de prueba | `src/tests/e2e/` |
-| `npm run test:unit` | Validadores y middlewares aislados, sin levantar la app | `src/tests/unit/` |
+| `npm run test:e2e:auth` | Flujos HTTP de autenticación con Supertest y MongoDB de prueba | `src/tests/e2e/01_auth.test.js` |
+| `npm run test:e2e:estudiantes` | Flujos de registro, confirmación y perfil de estudiantes | `src/tests/e2e/02_estudiantes.test.js` |
+| `npm run test:e2e:redes` | Solicitud y aprobación de redes comunitarias | `src/tests/e2e/03_redesComunitarias.test.js` |
+| `npm run test:e2e:social` | Interacción social: publicaciones, likes, comentarios y notificaciones | `src/tests/e2e/04_social.test.js` |
+| `npm run test:e2e:moderacion` | Reportes, resolución y acciones de moderación | `src/tests/e2e/05_moderacion.test.js` |
+| `npm run test:unit:middleware` | Validadores de middleware y control de acceso aislado | `src/tests/unit/middlewares.test.js` |
+| `npm run test:unit:validators` | Validaciones de entradas y formato aisladas | `src/tests/unit/validators.test.js` |
 
 Los mocks de servicios externos (Nodemailer, Pusher, Cloudinary) viven en `src/tests/helpers/setupMocks.js` y se cargan automáticamente vía Jest para evitar efectos secundarios en red durante las pruebas.
 
@@ -375,9 +384,13 @@ Las pruebas unitarias se concentran en **lógica pura y repetible** que no requi
 ### Comandos de ejecución
 
 ```bash
-npm run test:e2e    # 64 pruebas — flujos HTTP completos (--runInBand)
-npm run test:unit   # 22 pruebas — validadores y middlewares
-npm test            # ejecuta todas las pruebas en src/tests/
+npm run test:e2e:auth
+npm run test:e2e:estudiantes
+npm run test:e2e:redes
+npm run test:e2e:social
+npm run test:e2e:moderacion
+npm run test:unit:middleware
+npm run test:unit:validators
 ```
 
 Variables de entorno requeridas para E2E: `MONGODB_URI_TEST` (definida en `.env`, usada por `src/tests/helpers/setupDB.js`).
